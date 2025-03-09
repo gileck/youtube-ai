@@ -3,15 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import cache from './cache/cache';
 import Models from '../../core/utils/models';
-import { summarizeTranscript } from '../../core/summarize-transcript';
 import config from '../../config';
-
-// Helper function to extract video ID from YouTube URL
-function extractVideoId(url) {
-  const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[7].length === 11) ? match[7] : null;
-}
+import { 
+  extractVideoId, 
+  getTranscript, 
+  getChapters, 
+  getTranscriptWithChapters, 
+  summarizeTranscript 
+} from '../../core/pure-functions';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -70,16 +69,40 @@ export default async function handler(req, res) {
       });
     }
 
+    // Fetch transcript and chapters using pure functions
+    console.log(`Fetching transcript and chapters for video ${videoId}...`);
+    const transcriptData = await getTranscript(videoId);
+    const chaptersData = await getChapters(videoId, {
+      chapterOffset: config.youtube?.chapterOffset || 0,
+      skipFirstChapterOffset: config.youtube?.skipFirstChapterOffset !== false
+    });
+
+    // Combine transcript and chapters
+    const transcriptWithChapters = getTranscriptWithChapters(
+      videoId, 
+      transcriptData, 
+      chaptersData, 
+      {
+        chapterFilters: config.youtube?.chapterFilters || { enabled: false, patterns: [] }
+      }
+    );
+
     // Generate summary with options from centralized config
     const summaryOptions = {
       model: model || config.ai.model,
       currency: currency || config.currency.default,
       parallelProcessing: config.ai.parallelProcessing,
       maxConcurrentRequests: config.ai.maxConcurrentRequests,
-      chunkingStrategy: config.ai.chunkingStrategy
+      chunkingStrategy: config.ai.chunkingStrategy,
+      includeChapterBreakdown: config.ai.includeChapterBreakdown
     };
     
-    const summaryResult = await summarizeTranscript(videoId, summaryOptions);
+    // Use the formatted text for summarization
+    const summaryResult = await summarizeTranscript(
+      videoId, 
+      transcriptWithChapters.formattedText, 
+      summaryOptions
+    );
 
     if (!summaryResult || !summaryResult.text) {
       console.error('Failed to generate summary:', summaryResult);

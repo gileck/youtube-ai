@@ -3,14 +3,14 @@ import path from 'path';
 import fs from 'fs';
 import cache from './cache/cache';
 import Models from '../../core/utils/models';
-import { createTranscriptWithChapters } from '../../core/transcript-with-chapters';
-
-// Helper function to extract video ID from YouTube URL
-function extractVideoId(url) {
-  const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
-  const match = url.match(regExp);
-  return (match && match[7].length === 11) ? match[7] : null;
-}
+import config from '../../config';
+// Import pure functions
+import { 
+  extractVideoId, 
+  getTranscript, 
+  getChapters, 
+  getTranscriptWithChapters 
+} from '../../core/pure-functions';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -42,7 +42,15 @@ export default async function handler(req, res) {
       const cachedResult = cache.get(cacheKey);
       if (cachedResult) {
         console.log(`Returning cached estimate for ${videoId}`);
-        return res.json(cachedResult);
+        
+        // Add requiresApproval flag based on cost threshold
+        const costApprovalThreshold = config.ai.costApprovalThreshold || 0.05; // Default to $0.05 if not set
+        const requiresApproval = cachedResult.totalCost > costApprovalThreshold;
+        
+        return res.json({
+          ...cachedResult,
+          requiresApproval
+        });
       }
     }
 
@@ -65,9 +73,23 @@ export default async function handler(req, res) {
 
     if (!fs.existsSync(transcriptPath)) {
       console.log(`Generating transcript for ${videoId}...`);
-      const generatedPath = await createTranscriptWithChapters(youtubeUrl, apiConfig);
-
-      if (!generatedPath) {
+      
+      // Get transcript and chapters using pure functions
+      const transcriptData = await getTranscript(videoId);
+      const chaptersData = await getChapters(videoId);
+      
+      // Combine transcript and chapters
+      const combinedData = getTranscriptWithChapters(videoId, transcriptData, chaptersData);
+      
+      // Ensure output directory exists
+      if (!fs.existsSync(outputDir)) {
+        fs.mkdirSync(outputDir, { recursive: true });
+      }
+      
+      // Write the formatted text to file
+      fs.writeFileSync(transcriptPath, combinedData.formattedText);
+      
+      if (!fs.existsSync(transcriptPath)) {
         return res.status(500).json({ error: 'Failed to generate transcript' });
       }
     }
@@ -85,11 +107,21 @@ export default async function handler(req, res) {
 
     // Estimate cost
     const estimate = await summarizer.estimateCost(transcript);
+    
+    // Check if the estimated cost exceeds the threshold
+    const costApprovalThreshold = config.ai.costApprovalThreshold || 0.05; // Default to $0.05 if not set
+    const requiresApproval = estimate.totalCost > costApprovalThreshold;
+    
+    // Add the requiresApproval flag to the response
+    const estimateWithApprovalFlag = {
+      ...estimate,
+      requiresApproval
+    };
 
     // Cache the result
-    cache.set(cacheKey, estimate);
+    cache.set(cacheKey, estimateWithApprovalFlag);
 
-    res.json(estimate);
+    res.json(estimateWithApprovalFlag);
   } catch (error) {
     console.error('Error estimating cost:', error);
     res.status(500).json({ error: 'Failed to estimate cost' });

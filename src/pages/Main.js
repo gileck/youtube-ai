@@ -191,11 +191,19 @@ export function Main() {
                 skipCache: skipCache
             });
 
+            const estimateData = response.data;
             setCostEstimate({
-                ...response.data,
+                ...estimateData,
                 skipCache
             });
-            setCostApprovalDialogOpen(true);
+            
+            // Check if cost approval is needed based on the threshold
+            if (estimateData.requiresApproval) {
+                setCostApprovalDialogOpen(true);
+            } else {
+                // If approval not required, proceed directly with summary generation
+                handleGenerateSummary(skipCache);
+            }
         } catch (error) {
             console.error('Error estimating cost:', error);
             setError(error.response?.data?.error || 'Failed to estimate cost');

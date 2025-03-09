@@ -13,7 +13,8 @@ const config = {
     chunkingStrategy: 'chapter',
     parallelProcessing: true,
     maxConcurrentRequests: 10,
-    promptFile: 'prompt.txt' // Path to the prompt file (relative to client-app directory)
+    promptFile: 'prompt.txt', // Path to the prompt file (relative to client-app directory)
+    costApprovalThreshold: 0.05 // Threshold in USD for cost approval (default: $0.05)
   },
   
   // Currency settings
