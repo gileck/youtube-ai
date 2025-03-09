@@ -1,0 +1,7 @@
+{
+  "model": "GOOGLE_GEMINI_15_FLASH",
+  "chunkingStrategy": "chapter",
+  "currency": "ILS",
+  "parallelProcessing": true,
+  "maxConcurrentRequests": 10
+}

@@ -1,0 +1,13 @@
+{
+  "videoId": "N5DAW8mkJ6Y",
+  "model": "google/gemini-1.5-flash",
+  "modelName": "Gemini 1.5 Flash",
+  "inputTokens": 73713,
+  "outputTokens": 16254,
+  "totalTokens": 89967,
+  "inputCost": 0.01842825,
+  "outputCost": 0.008127,
+  "totalCost": 0.026555250000000002,
+  "processingTime": 28.6,
+  "timestamp": "2025-03-07T13:44:49.180Z"
+}

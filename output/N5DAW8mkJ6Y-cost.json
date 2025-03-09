@@ -1,0 +1,19 @@
+{
+  "videoId": "N5DAW8mkJ6Y",
+  "model": "google/gemini-1.5-flash",
+  "modelName": "Gemini 1.5 Flash",
+  "inputTokens": 76811,
+  "outputTokens": 18466,
+  "totalTokens": 95277,
+  "inputCost": 0.01920275,
+  "outputCost": 0.009233,
+  "totalCost": 0.028435750000000003,
+  "inputCostFormatted": "₪0.0701",
+  "outputCostFormatted": "₪0.0337",
+  "totalCostFormatted": "₪0.1038",
+  "currency": "ILS",
+  "exchangeRate": 3.65,
+  "processingTime": 21.5,
+  "timestamp": "2025-03-07T14:39:29.408Z",
+  "fromCache": false
+}

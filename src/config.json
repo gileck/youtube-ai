@@ -1,0 +1,14 @@
+{
+  "chapterOffset": 0,
+  "skipFirstChapterOffset": true,
+  "directories": {
+    "output": "output"
+  },
+  "chapterFilters": {
+    "enabled": true,
+    "patterns": [
+      "^Sponsor: .*",
+      "^Sponsors: .*"
+    ]
+  }
+}
