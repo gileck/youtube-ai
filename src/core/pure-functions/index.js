@@ -5,10 +5,8 @@
 
 const { extractVideoId: extractVideoIdTranscript, getTranscript } = require('./get-transcript');
 const { 
-  extractVideoId: extractVideoIdChapters, 
-  getVideoDescription, 
   formatTimestamp, 
-  getChapters 
+  getChapters
 } = require('./get-chapters');
 const { 
   shouldFilterChapter, 
@@ -17,6 +15,10 @@ const {
   getTranscriptWithChapters 
 } = require('./transcript-with-chapters');
 const { summarizeTranscript } = require('./summarize-transcript');
+const {
+  getVideoInfo,
+  extractVideoId: extractVideoIdInfo
+} = require('./get-video-info');
 
 // Export a unified extractVideoId function
 function extractVideoId(url) {
@@ -31,7 +33,6 @@ module.exports = {
   getTranscript,
   
   // Export functions from get-chapters.js
-  getVideoDescription,
   formatTimestamp,
   getChapters,
   
@@ -42,5 +43,8 @@ module.exports = {
   getTranscriptWithChapters,
   
   // Export functions from summarize-transcript.js
-  summarizeTranscript
+  summarizeTranscript,
+  
+  // Export functions from get-video-info.js
+  getVideoInfo
 };

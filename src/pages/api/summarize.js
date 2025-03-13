@@ -4,11 +4,13 @@ import fs from 'fs';
 import cache from './cache/cache';
 import Models from '../../core/utils/models';
 import config from '../../config';
+// Import pure functions
 import { 
   extractVideoId, 
   getTranscript, 
   getChapters, 
-  getTranscriptWithChapters, 
+  getTranscriptWithChapters,
+  getVideoInfo,
   summarizeTranscript 
 } from '../../core/pure-functions';
 
@@ -68,6 +70,12 @@ export default async function handler(req, res) {
         message: 'The summary is not available in cache and forceCache was set to true'
       });
     }
+
+    // Fetch video information
+    console.log(`Fetching video information for ${videoId}...`);
+    const videoInfo = await getVideoInfo(videoId);
+    console.log(`Video title: ${videoInfo.title}`);
+    console.log(`Channel: ${videoInfo.channel.name}`);
 
     // Fetch transcript and chapters using pure functions
     console.log(`Fetching transcript and chapters for video ${videoId}...`);
@@ -140,7 +148,12 @@ export default async function handler(req, res) {
     const result = {
       videoId,
       summary: summaryResult.text,
-      cost: costInfo
+      cost: costInfo,
+      title: videoInfo.title,
+      channelName: videoInfo.channel.name,
+      publishDate: videoInfo.publishDate,
+      thumbnails: videoInfo.thumbnails,
+      videoUrl: videoInfo.url
     };
 
     // Cache the result

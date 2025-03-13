@@ -33,7 +33,10 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SettingsIcon from '@mui/icons-material/Settings';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CancelIcon from '@mui/icons-material/Cancel';
-import ReactMarkdown from 'react-markdown';
+import HistoryIcon from '@mui/icons-material/History';
+import SubscriptionsIcon from '@mui/icons-material/Subscriptions';
+import Link from 'next/link';
+import MarkdownRenderer from '../components/MarkdownRenderer';
 import config from '../config';
 
 // API base URL
@@ -129,6 +132,50 @@ export function Main() {
 
         fetchInitialData();
     }, []);
+
+    // Save summary to history in local storage
+    const saveToHistory = (summaryData) => {
+        try {
+            // Get existing history or initialize empty array
+            const existingHistory = localStorage.getItem('youtubeAiHistory');
+            const history = existingHistory ? JSON.parse(existingHistory) : [];
+            
+            // Check if this video is already in history
+            const existingIndex = history.findIndex(item => item.videoId === summaryData.videoId);
+            
+            // Create history item
+            const historyItem = {
+                videoId: summaryData.videoId,
+                summary: summaryData.summary,
+                timestamp: new Date().toISOString(),
+                cost: summaryData.cost,
+                title: summaryData.title || `YouTube Video (${summaryData.videoId})`,
+                channelName: summaryData.channelName || '',
+                publishDate: summaryData.publishDate || null,
+                thumbnails: summaryData.thumbnails || {
+                    default: `https://img.youtube.com/vi/${summaryData.videoId}/default.jpg`,
+                    medium: `https://img.youtube.com/vi/${summaryData.videoId}/mqdefault.jpg`,
+                    high: `https://img.youtube.com/vi/${summaryData.videoId}/hqdefault.jpg`
+                },
+                videoUrl: summaryData.videoUrl || `https://www.youtube.com/watch?v=${summaryData.videoId}`
+            };
+            
+            // Update or add the item
+            if (existingIndex !== -1) {
+                // Update existing item
+                history[existingIndex] = historyItem;
+            } else {
+                // Add new item
+                history.push(historyItem);
+            }
+            
+            // Save back to local storage
+            localStorage.setItem('youtubeAiHistory', JSON.stringify(history));
+            
+        } catch (error) {
+            console.error('Error saving to history:', error);
+        }
+    };
 
     // Handle YouTube URL input change
     const handleUrlChange = (e) => {
@@ -245,7 +292,19 @@ export function Main() {
 
             setSummary(response.data.summary);
             setActualCost(response.data.cost);
-
+            
+            // Save to history
+            saveToHistory({
+                videoId: response.data.videoId,
+                summary: response.data.summary,
+                cost: response.data.cost,
+                title: response.data.title,
+                channelName: response.data.channelName,
+                publishDate: response.data.publishDate,
+                thumbnails: response.data.thumbnails,
+                videoUrl: response.data.videoUrl
+            });
+            
             // Update cache stats after generating summary
             const cacheResponse = await axios.get(`${API_URL}/cache/stats`);
             setCacheStats(cacheResponse.data);
@@ -576,7 +635,7 @@ export function Main() {
         if (!cacheStats) return null;
 
         return (
-            <Box mt={4} mb={2}>
+            <Box mt={4}>
                 <Box display="flex" justifyContent="space-between" alignItems="center">
                     <Typography variant="subtitle2" color="text.secondary">
                         Cache: {cacheStats.count || 0} items ({cacheStats.sizeFormatted || '0 Bytes'})
@@ -655,6 +714,33 @@ export function Main() {
 
     return (
         <Container maxWidth="md" sx={{ py: 4 }}>
+            <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Typography variant="h4" component="h1" sx={{ display: 'flex', alignItems: 'center' }}>
+                    <YouTubeIcon sx={{ mr: 1, color: 'red' }} />
+                    YouTube AI Summarizer
+                </Typography>
+                <Box>
+                    <Link href="/history" passHref>
+                        <Button startIcon={<HistoryIcon />} sx={{ ml: 1 }}>
+                            History
+                        </Button>
+                    </Link>
+                    <Link href="/Channels" passHref>
+                        <Button startIcon={<SubscriptionsIcon />} sx={{ ml: 1 }}>
+                            Channels
+                        </Button>
+                    </Link>
+                    <Tooltip title="Settings">
+                        <IconButton 
+                            onClick={() => setSettingsDialogOpen(true)}
+                            color="primary"
+                        >
+                            <SettingsIcon />
+                        </IconButton>
+                    </Tooltip>
+                </Box>
+            </Box>
+
             <Paper elevation={3} sx={{ p: 4, mb: 4 }}>
                 <Box display="flex" alignItems="center" mb={3}>
                     <YouTubeIcon color="error" fontSize="large" sx={{ mr: 2 }} />
@@ -740,7 +826,7 @@ export function Main() {
                                 Summary
                             </Typography>
                             <Paper variant="outlined" sx={{ p: 3, mt: 2, bgcolor: '#f9f9f9' }}>
-                                <ReactMarkdown>{summary}</ReactMarkdown>
+                                <MarkdownRenderer content={summary} noPaper={true} />
                             </Paper>
                         </Box>
 

@@ -24,15 +24,32 @@ const config = {
   
   // YouTube settings
   youtube: {
-    defaultUrl: 'https://www.youtube.com/watch?v=N5DAW8mkJ6Y',
+    defaultUrl: 'https://www.youtube.com/watch?v=01op4XmNmxA',
     chapterOffset: 0,
     skipFirstChapterOffset: true,
     chapterFilters: {
-      enabled: true,
-      patterns: [
-        "^Sponsor: .*",
-        "^Sponsors: .*"
-      ]
+      enabled: false,
+      patterns: []
+    },
+    apiKey: process.env.YOUTUBE_API_KEY || '',
+    // YouTube API settings
+    api: {
+      quotaLimit: 10000, // Default daily quota limit
+      quotaWarningThreshold: 0.8, // Show warning at 80% usage
+      cacheTTL: {
+        search: 24 * 60 * 60 * 1000, // 24 hours
+        channelInfo: 24 * 60 * 60 * 1000, // 24 hours
+        videos: 6 * 60 * 60 * 1000, // 6 hours
+        videoDetails: 24 * 60 * 60 * 1000 // 24 hours
+      },
+      costPerRequest: {
+        search: 100, // Search costs 100 units
+        channelInfo: 1, // Channel info costs 1 unit
+        videoInfo: 1, // Video info costs 1 unit per video
+        videoSearch: 100 // Video search costs 100 units
+      },
+      maxCacheSize: 100, // Maximum number of items to cache
+      enableBatchRequests: true // Enable batching multiple requests
     }
   },
   
