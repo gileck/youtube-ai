@@ -52,18 +52,59 @@ function convertFromUsd(usdAmount, targetCurrency = 'USD') {
 }
 
 /**
+ * Get the exchange rate between two currencies
+ * @param {string} fromCurrency - Source currency code
+ * @param {string} toCurrency - Target currency code
+ * @returns {number} - Exchange rate (fromCurrency to toCurrency)
+ */
+function getExchangeRate(fromCurrency = 'USD', toCurrency = 'USD') {
+  // Default to 1.0 if currencies not supported
+  if (!EXCHANGE_RATES[fromCurrency] || !EXCHANGE_RATES[toCurrency]) {
+    return 1.0;
+  }
+  
+  // Calculate the exchange rate
+  // First convert to USD, then to target currency
+  const fromRate = EXCHANGE_RATES[fromCurrency];
+  const toRate = EXCHANGE_RATES[toCurrency];
+  
+  return toRate / fromRate;
+}
+
+/**
+ * Format an amount with the appropriate currency symbol
+ * @param {number} amount - The amount to format
+ * @param {string} currency - The currency code
+ * @param {number} decimals - Number of decimal places
+ * @returns {string} - Formatted amount with currency symbol
+ */
+function formatAmount(amount, currency = 'USD', decimals = 4) {
+  // Default to USD if currency not supported
+  if (!CURRENCY_SYMBOLS[currency]) {
+    currency = 'USD';
+  }
+  
+  const symbol = CURRENCY_SYMBOLS[currency];
+  return `${symbol}${amount.toFixed(decimals)}`;
+}
+
+/**
  * Get list of supported currencies with their symbols
  * @returns {Array} - Array of currency objects with code and symbol
  */
 function getSupportedCurrencies() {
   return Object.keys(EXCHANGE_RATES).map(code => ({
     code,
-    symbol: CURRENCY_SYMBOLS[code],
+    symbol: CURRENCY_SYMBOLS[code] || '',
     rate: EXCHANGE_RATES[code]
   }));
 }
 
-// For backward compatibility
+/**
+ * Convert USD to ILS (for backward compatibility)
+ * @param {number} usdAmount - Amount in USD
+ * @returns {Object} - Conversion result
+ */
 function convertUsdToIls(usdAmount) {
   return convertFromUsd(usdAmount, 'ILS');
 }
@@ -72,7 +113,8 @@ module.exports = {
   convertFromUsd,
   convertUsdToIls,
   getSupportedCurrencies,
-  USD_TO_ILS_RATE: EXCHANGE_RATES.ILS,
+  getExchangeRate,
+  formatAmount,
   EXCHANGE_RATES,
   CURRENCY_SYMBOLS
 };

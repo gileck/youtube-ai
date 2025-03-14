@@ -3,12 +3,13 @@
  */
 
 const Models = require('./core/utils/models');
+const ModelManager = require('./core/utils/model-manager');
 
 // Default configuration
 const config = {
   // AI model settings
   ai: {
-    model: 'google/gemini-1.5-flash', // Default model
+    model: ModelManager.getDefaultModelName(), // Default model (gemini-1.5-flash)
     includeChapterBreakdown: true,
     chunkingStrategy: 'chapter',
     parallelProcessing: true,
@@ -16,12 +17,12 @@ const config = {
     promptFile: 'prompt.txt', // Path to the prompt file (relative to client-app directory)
     costApprovalThreshold: 0.05 // Threshold in USD for cost approval (default: $0.05)
   },
-  
+
   // Currency settings
   currency: {
     default: 'ILS', // Default currency is Israeli Shekel
   },
-  
+
   // YouTube settings
   youtube: {
     defaultUrl: 'https://www.youtube.com/watch?v=01op4XmNmxA',
@@ -48,16 +49,15 @@ const config = {
         videoInfo: 1, // Video info costs 1 unit per video
         videoSearch: 100 // Video search costs 100 units
       },
-      maxCacheSize: 100, // Maximum number of items to cache
-      enableBatchRequests: true // Enable batching multiple requests
+      maxCacheSize: 100 // Maximum number of items to cache
     }
   },
-  
+
   // File paths
   paths: {
     output: 'output'
   },
-  
+
   // Cache settings
   cache: {
     enabled: true,

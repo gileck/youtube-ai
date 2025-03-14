@@ -21,7 +21,6 @@ class TranscriptSummarizer {
       overlapTokens: 500,
       includeChapterBreakdown: true,
       chunkingStrategy: 'chapter', // 'token' or 'chapter'
-      chapterPattern: /^# \[\d{2}:\d{2}:\d{2}\].*$/gm, // Added 'gm' flags for global matching
       currency: 'ILS', // Default currency is ILS
       parallelProcessing: true, // Enable parallel processing
       maxConcurrentRequests: 5, // Maximum number of concurrent API requests
@@ -37,7 +36,7 @@ class TranscriptSummarizer {
     try {
       // Try to load prompt from the path specified in config
       const promptFile = this.config.promptFile || 'prompt.txt';
-      
+
       // Try multiple possible locations for the prompt file
       const possiblePaths = [
         // Relative to the current working directory
@@ -47,7 +46,7 @@ class TranscriptSummarizer {
         // Absolute path if provided
         promptFile
       ];
-      
+
       for (const filePath of possiblePaths) {
         if (fs.existsSync(filePath)) {
           console.log(`Loading prompt from: ${filePath}`);
@@ -55,7 +54,7 @@ class TranscriptSummarizer {
           return promptText.trim();
         }
       }
-      
+
       console.warn('Prompt file not found, using default prompt');
     } catch (error) {
       console.error('Error loading prompt file:', error);
@@ -274,9 +273,13 @@ class TranscriptSummarizer {
 
     // Estimate based on chunking strategy
     if (config.chunkingStrategy === 'chapter') {
-      // Split by chapters to estimate
-      const chapters = TextChunker.splitByChapters(transcript, config.chapterPattern, config.maxTokensPerChunk);
-      numberOfChunks = chapters.length;
+      // If we have chapter content directly
+      if (options.chapterContent && Object.keys(options.chapterContent).length > 0) {
+        numberOfChunks = Object.keys(options.chapterContent).length;
+      } else {
+        // Fallback to token-based estimation
+        numberOfChunks = Math.ceil(inputTokenCount / (config.maxTokensPerChunk - config.overlapTokens));
+      }
 
       // If we have chapters, we'll make one API call per chapter plus one for combining
       if (numberOfChunks > 0) {
@@ -284,12 +287,19 @@ class TranscriptSummarizer {
 
         // Estimate tokens for each chapter
         let chapterInputTokens = 0;
-        chapters.forEach(chapter => {
-          const chapterTokens = TextChunker.estimateTokenCount(chapter.content);
-          chapterInputTokens += chapterTokens;
-          // Estimate output tokens as 20% of input, max 2000 per chapter
-          totalOutputTokens += Math.min(2000, Math.ceil(chapterTokens * 0.2));
-        });
+
+        if (options.chapterContent) {
+          Object.values(options.chapterContent).forEach(content => {
+            const chapterTokens = TextChunker.estimateTokenCount(content);
+            chapterInputTokens += chapterTokens;
+            // Estimate output tokens as 20% of input, max 2000 per chapter
+            totalOutputTokens += Math.min(2000, Math.ceil(chapterTokens * 0.2));
+          });
+        } else {
+          // Rough estimation without actual chapter content
+          chapterInputTokens = inputTokenCount;
+          totalOutputTokens = Math.min(2000 * numberOfChunks, Math.ceil(inputTokenCount * 0.2));
+        }
 
         // Add tokens for the combining step
         // Assuming each chapter summary is about 20% of the original chapter
@@ -359,7 +369,7 @@ class TranscriptSummarizer {
 
   /**
    * Summarize a transcript
-   * @param {string} transcript - The transcript text to summarize
+   * @param {string|Object} transcript - The transcript text to summarize or object with chapterContent
    * @param {Object} options - Options for the summary generation
    * @returns {Promise<Object>} - The summary result with text and usage information
    */
@@ -370,8 +380,24 @@ class TranscriptSummarizer {
     // Create adapter for the specified model
     const adapter = await this.createAdapter(config.model);
 
+    // Determine if we have structured chapter content
+    const hasChapterContent = options.chapterContent &&
+      typeof options.chapterContent === 'object' &&
+      Object.keys(options.chapterContent).length > 0;
+
     // Estimate token count
-    const inputTokenCount = TextChunker.estimateTokenCount(transcript);
+    let inputTokenCount;
+    if (hasChapterContent) {
+      // Sum up tokens from all chapters
+      inputTokenCount = Object.values(options.chapterContent)
+        .reduce((total, content) => total + TextChunker.estimateTokenCount(content), 0);
+    } else {
+      // Treat transcript as a string
+      inputTokenCount = TextChunker.estimateTokenCount(
+        typeof transcript === 'string' ? transcript : JSON.stringify(transcript)
+      );
+    }
+
     const estimatedOutputTokens = Math.min(4000, Math.ceil(inputTokenCount * 0.2));
 
     // Calculate estimated cost
@@ -402,19 +428,39 @@ class TranscriptSummarizer {
     if (config.chunkingStrategy === 'chapter') {
       console.log('Using chapter-based chunking strategy');
 
-      // Split transcript by chapters
-      const chapters = TextChunker.splitByChapters(transcript, config.chapterPattern, config.maxTokensPerChunk);
-      console.log(`Split transcript into ${chapters.length} chapters`);
+      // Process chapters based on whether we have structured chapter content
+      let chapters = [];
+
+      if (hasChapterContent) {
+        // Use the provided chapter content directly
+        chapters = Object.entries(options.chapterContent).map(([title, content]) => ({
+          title,
+          content
+        }));
+        console.log(`Using provided chapter content with ${chapters.length} chapters`);
+      } else if (typeof transcript === 'string') {
+        // Fallback to token-based chunking if no chapters are available
+        console.log('No structured chapter content provided. Falling back to token-based chunking.');
+
+        if (inputTokenCount < config.maxTokensPerChunk) {
+          // If transcript is small enough, process it directly
+          const result = await this.processSmallTranscript(adapter, transcript, config);
+          return result;
+        } else {
+          // For large transcripts without chapters, use token-based chunking
+          return this.processLargeTranscriptWithTokenChunking(adapter, transcript, config, startTime);
+        }
+      }
 
       // Process chapters
       let chapterSummaries = [];
 
-      if (config.parallelProcessing) {
+      if (config.parallelProcessing && chapters.length > 0) {
         console.log(`Processing chapters in parallel (max ${config.maxConcurrentRequests} concurrent requests)`);
         const result = await this.processChaptersInParallel(adapter, chapters);
         chapterSummaries = result.chapterSummaries;
         usage = result.usage;
-      } else {
+      } else if (chapters.length > 0) {
         // Process each chapter sequentially
         console.log('Processing chapters sequentially');
         for (let i = 0; i < chapters.length; i++) {
@@ -426,6 +472,11 @@ class TranscriptSummarizer {
           usage.promptTokens += chapterSummary.usage.promptTokens || TextChunker.estimateTokenCount(chapters[i].content);
           usage.completionTokens += chapterSummary.usage.completionTokens || TextChunker.estimateTokenCount(chapterSummary.summary);
         }
+      } else {
+        // No chapters available, fallback to processing the whole transcript
+        console.log('No chapters available. Processing entire transcript.');
+        const result = await this.processSmallTranscript(adapter, transcript, config);
+        return result;
       }
 
       // Combine chapter summaries
@@ -439,51 +490,144 @@ class TranscriptSummarizer {
       usage.totalTokens = usage.promptTokens + usage.completionTokens;
       usage.isEstimated = true;
     } else {
-      // If transcript is small enough, process it directly
+      // Use token-based chunking
       if (inputTokenCount < config.maxTokensPerChunk) {
-        // Get the prompt
-        const systemPrompt = this.getPrompt();
-
-        // Prepare the user prompt
-        const userPrompt = `Please summarize the following YouTube video transcript. ${config.includeChapterBreakdown ? 'Include a breakdown by chapters if available.' : ''
-          }\n\nTRANSCRIPT:\n${transcript}`;
-
-        // Generate the summary
-        const result = await adapter.generateCompletion(systemPrompt, userPrompt);
-        summary = result.text;
-        usage = result.usage || usage;
+        // If transcript is small enough, process it directly
+        const result = await this.processSmallTranscript(adapter, transcript, config);
+        return result;
       } else {
-        // For large transcripts, split into chunks and process each chunk
-        console.log(`Transcript is too large (${inputTokenCount} tokens). Splitting into chunks...`);
-
-        // Split transcript into chunks
-        const chunks = TextChunker.splitByTokens(transcript, config.maxTokensPerChunk, config.overlapTokens);
-        console.log(`Split transcript into ${chunks.length} chunks`);
-
-        // Process each chunk
-        const partialSummaries = [];
-        for (let i = 0; i < chunks.length; i++) {
-          console.log(`Processing chunk ${i + 1}/${chunks.length}...`);
-          const partialSummary = await this.generateChunkSummary(adapter, chunks[i], true);
-          partialSummaries.push(partialSummary);
-
-          // Accumulate token usage (estimated for chunk processing)
-          usage.promptTokens += TextChunker.estimateTokenCount(chunks[i]);
-          usage.completionTokens += TextChunker.estimateTokenCount(partialSummary);
-        }
-
-        // Combine partial summaries
-        console.log('Combining partial summaries...');
-        summary = await this.combinePartialSummaries(adapter, partialSummaries);
-
-        // Add token usage for combining step (estimated)
-        const combinePrompt = partialSummaries.join('\n\n');
-        usage.promptTokens += TextChunker.estimateTokenCount(combinePrompt);
-        usage.completionTokens += TextChunker.estimateTokenCount(summary);
-        usage.totalTokens = usage.promptTokens + usage.completionTokens;
-        usage.isEstimated = true;
+        // For large transcripts, use token-based chunking
+        return this.processLargeTranscriptWithTokenChunking(adapter, transcript, config, startTime);
       }
     }
+
+    // Calculate processing time
+    const processingTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Calculate actual cost based on usage
+    const actualCost = Pricing.calculateCost(config.model, usage.promptTokens, usage.completionTokens);
+    const formattedCost = this.formatCost(actualCost);
+
+    console.log(`\nActual API Cost:`);
+    console.log(`Model: ${actualCost.model}`);
+    console.log(`Input: ${usage.promptTokens.toLocaleString()} tokens (${formattedCost.inputCostFormatted})`);
+    console.log(`Output: ${usage.completionTokens.toLocaleString()} tokens (${formattedCost.outputCostFormatted})`);
+    console.log(`Total: ${formattedCost.totalCostFormatted}`);
+    if (formattedCost.currency !== 'USD') {
+      console.log(`Exchange rate: 1 USD = ${formattedCost.exchangeRate} ${formattedCost.currency}`);
+    }
+    console.log(`Processing time: ${processingTime} seconds`);
+
+    return {
+      text: summary,
+      usage,
+      cost: {
+        ...actualCost,
+        ...formattedCost
+      },
+      processingTime: parseFloat(processingTime)
+    };
+  }
+
+  /**
+   * Process a small transcript directly without chunking
+   * @param {Object} adapter - The AI adapter
+   * @param {string} transcript - The transcript text
+   * @param {Object} config - Configuration options
+   * @returns {Promise<Object>} - The summary result
+   */
+  async processSmallTranscript(adapter, transcript, config) {
+    const startTime = Date.now();
+
+    // Get the prompt
+    const systemPrompt = this.getPrompt();
+
+    // Prepare the user prompt
+    const userPrompt = `Please summarize the following YouTube video transcript. ${config.includeChapterBreakdown ? 'Include a breakdown by chapters if available.' : ''
+      }\n\nTRANSCRIPT:\n${transcript}`;
+
+    // Generate the summary
+    const result = await adapter.generateCompletion(systemPrompt, userPrompt);
+    const summary = result.text;
+    const usage = result.usage || {
+      promptTokens: TextChunker.estimateTokenCount(userPrompt),
+      completionTokens: TextChunker.estimateTokenCount(summary),
+      totalTokens: 0
+    };
+    usage.totalTokens = usage.promptTokens + usage.completionTokens;
+
+    // Calculate processing time
+    const processingTime = ((Date.now() - startTime) / 1000).toFixed(1);
+
+    // Calculate cost
+    const actualCost = Pricing.calculateCost(config.model, usage.promptTokens, usage.completionTokens);
+    const formattedCost = this.formatCost(actualCost);
+
+    console.log(`\nActual API Cost:`);
+    console.log(`Model: ${actualCost.model}`);
+    console.log(`Input: ${usage.promptTokens.toLocaleString()} tokens (${formattedCost.inputCostFormatted})`);
+    console.log(`Output: ${usage.completionTokens.toLocaleString()} tokens (${formattedCost.outputCostFormatted})`);
+    console.log(`Total: ${formattedCost.totalCostFormatted}`);
+    if (formattedCost.currency !== 'USD') {
+      console.log(`Exchange rate: 1 USD = ${formattedCost.exchangeRate} ${formattedCost.currency}`);
+    }
+    console.log(`Processing time: ${processingTime} seconds`);
+
+    return {
+      text: summary,
+      usage,
+      cost: {
+        ...actualCost,
+        ...formattedCost
+      },
+      processingTime: parseFloat(processingTime)
+    };
+  }
+
+  /**
+   * Process a large transcript using token-based chunking
+   * @param {Object} adapter - The AI adapter
+   * @param {string} transcript - The transcript text
+   * @param {Object} config - Configuration options
+   * @param {number} startTime - Start time for processing
+   * @returns {Promise<Object>} - The summary result
+   */
+  async processLargeTranscriptWithTokenChunking(adapter, transcript, config, startTime) {
+    // For large transcripts, split into chunks and process each chunk
+    console.log(`Transcript is too large. Splitting into chunks...`);
+
+    // Split transcript into chunks
+    const chunks = TextChunker.splitByTokens(transcript, config.maxTokensPerChunk, config.overlapTokens);
+    console.log(`Split transcript into ${chunks.length} chunks`);
+
+    // Process each chunk
+    const partialSummaries = [];
+    let usage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0
+    };
+
+    for (let i = 0; i < chunks.length; i++) {
+      console.log(`Processing chunk ${i + 1}/${chunks.length}...`);
+      const partialSummary = await this.generateChunkSummary(adapter, chunks[i], true);
+      partialSummaries.push(partialSummary);
+
+      // Accumulate token usage (estimated for chunk processing)
+      usage.promptTokens += TextChunker.estimateTokenCount(chunks[i]);
+      usage.completionTokens += TextChunker.estimateTokenCount(partialSummary);
+    }
+
+    // Combine partial summaries
+    console.log('Combining partial summaries...');
+    const summary = await this.combinePartialSummaries(adapter, partialSummaries);
+
+    // Add token usage for combining step (estimated)
+    const combinePrompt = partialSummaries.join('\n\n');
+    usage.promptTokens += TextChunker.estimateTokenCount(combinePrompt);
+    usage.completionTokens += TextChunker.estimateTokenCount(summary);
+    usage.totalTokens = usage.promptTokens + usage.completionTokens;
+    usage.isEstimated = true;
 
     // Calculate processing time
     const processingTime = ((Date.now() - startTime) / 1000).toFixed(1);

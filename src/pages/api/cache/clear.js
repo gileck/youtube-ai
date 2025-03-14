@@ -8,7 +8,12 @@ export default function handler(req, res) {
       res.json({ success: true, message: 'Cache cleared successfully' });
     } catch (error) {
       console.error('Error clearing cache:', error);
-      res.status(500).json({ error: 'Failed to clear cache' });
+      res.json({ 
+        success: false, 
+        error: 'Failed to clear cache',
+        message: error.message || 'An unexpected error occurred',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      });
     }
   } else {
     res.status(405).json({ error: 'Method not allowed' });

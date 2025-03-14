@@ -90,7 +90,11 @@ export default async function handler(req, res) {
       fs.writeFileSync(transcriptPath, combinedData.formattedText);
       
       if (!fs.existsSync(transcriptPath)) {
-        return res.status(500).json({ error: 'Failed to generate transcript' });
+        return res.json({ 
+          success: false,
+          error: 'Failed to generate transcript',
+          message: 'Could not create transcript file'
+        });
       }
     }
 
@@ -124,6 +128,11 @@ export default async function handler(req, res) {
     res.json(estimateWithApprovalFlag);
   } catch (error) {
     console.error('Error estimating cost:', error);
-    res.status(500).json({ error: 'Failed to estimate cost' });
+    res.json({ 
+      success: false,
+      error: 'Failed to estimate cost',
+      message: error.message || 'An unexpected error occurred',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }

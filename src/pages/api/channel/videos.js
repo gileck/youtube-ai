@@ -2,7 +2,6 @@
 import axios from 'axios';
 import config from '../../../config';
 import apiCache from '../../../core/utils/api-cache';
-import batchRequests from '../../../core/utils/batch-requests';
 
 // YouTube API key (should be stored in environment variables in production)
 const YOUTUBE_API_KEY = config.youtube?.apiKey || process.env.YOUTUBE_API_KEY;
@@ -70,10 +69,10 @@ export default async function handler(req, res) {
 
       if (!response.data.items || response.data.items.length === 0) {
         return res.json({
-          videos: [],
+          items: [],
+          totalResults: 0,
+          filteredResults: 0,
           nextPageToken: null,
-          totalCount: 0,
-          filteredCount: 0,
           fromCache,
           apiCost: fromCache ? 0 : totalApiCost
         });
@@ -87,243 +86,180 @@ export default async function handler(req, res) {
       let totalVideos = response.data.pageInfo.totalResults;
       let filteredCount = 0;
       
-      // Use batch requests if enabled, otherwise use regular API request
-      if (batchRequests.isBatchingEnabled()) {
-        // Get video details using batch requests (much more efficient)
-        // According to YouTube Data API v3 Quota Calculator:
-        // - videos.list costs 1 unit per request (not per video)
-        // - Each part specified costs additional units (snippet = 1, contentDetails = 1, statistics = 1)
-        // Total cost = 1 unit for the batch request
-        const videoDetailsPromises = videoIds.map(videoId => batchRequests.getVideoDetails(videoId));
-        const videoDetailsResults = await Promise.allSettled(videoDetailsPromises);
-        
+      // Fetch video details for duration and other info with caching
+      // According to YouTube Data API v3 Quota Calculator:
+      // - videos.list costs 1 unit per request (not per video)
+      // - Each part specified costs additional units (snippet = 1, contentDetails = 1, statistics = 1)
+      // Total cost = 1 unit for the request
+      const videoDetailsQuotaCost = 1;
+      
+      const { response: videoDetailsResponse, fromCache: videoDetailsFromCache } = await apiCache.cachedRequest(
+        // Request function
+        () => axios.get('https://www.googleapis.com/youtube/v3/videos', {
+          params: {
+            key: YOUTUBE_API_KEY,
+            id: videoIds.join(','),
+            part: 'contentDetails,statistics,snippet'
+          }
+        }),
+        // Endpoint for cache key
+        'youtube/videos/details',
+        // Parameters for cache key
+        { videoIds: videoIds.join(',') },
+        // Cache options
+        { 
+          ttl: VIDEO_DETAILS_CACHE_TTL, 
+          quotaCost: videoDetailsQuotaCost, // Video details costs 1 unit per request (not per video)
+          forceNetwork: false, // Don't force network request if approaching quota
+          apiType: 'videos' // Track as videos operation
+        }
+      );
+      
+      totalApiCost += videoDetailsQuotaCost;
+
+      if (videoDetailsResponse.data.items && videoDetailsResponse.data.items.length > 0) {
+        // Map search results to video details
+        const videoDetailsMap = {};
+        videoDetailsResponse.data.items.forEach(video => {
+          videoDetailsMap[video.id] = video;
+        });
+
         // Process each video
-        videoDetailsResults.forEach((result, index) => {
-          if (result.status === 'fulfilled') {
-            const videoDetails = result.value;
-            const videoId = videoDetails.id;
-            const searchItem = response.data.items.find(item => item.id.videoId === videoId);
+        response.data.items.forEach(item => {
+          const videoId = item.id.videoId;
+          const videoDetails = videoDetailsMap[videoId];
+          
+          if (videoDetails) {
+            // Parse duration
+            const duration = videoDetails.contentDetails.duration;
+            const durationInSeconds = parseDuration(duration);
+            const durationInMinutes = Math.floor(durationInSeconds / 60);
             
-            if (searchItem) {
-              // Parse duration
-              const duration = videoDetails.contentDetails.duration;
-              const durationInSeconds = parseDuration(duration);
-              const durationInMinutes = Math.floor(durationInSeconds / 60);
-              
-              // Check if this is a YouTube Short and skip it
-              if (isYouTubeShort(searchItem, videoDetails, durationInSeconds)) {
-                filteredCount++;
-                return; // Skip this video
-              }
-              
-              // Filter by minimum duration if specified
-              if (minDuration > 0 && durationInMinutes < minDuration) {
-                filteredCount++;
-                return; // Skip this video
-              }
-              
-              // Format video data
-              videos.push({
-                id: videoId,
-                title: searchItem.snippet.title,
-                description: searchItem.snippet.description,
-                publishedAt: searchItem.snippet.publishedAt,
-                thumbnails: searchItem.snippet.thumbnails,
-                channelTitle: searchItem.snippet.channelTitle,
-                duration,
-                durationInSeconds,
-                durationFormatted: formatDuration(durationInSeconds),
-                viewCount: parseInt(videoDetails.statistics.viewCount || 0),
-                likeCount: parseInt(videoDetails.statistics.likeCount || 0),
-                commentCount: parseInt(videoDetails.statistics.commentCount || 0)
-              });
+            // Check if this is a YouTube Short and skip it
+            if (isYouTubeShort(item, videoDetails, durationInSeconds)) {
+              filteredCount++;
+              return; // Skip this video
             }
+            
+            // Filter by minimum duration if specified
+            if (minDuration > 0 && durationInMinutes < minDuration) {
+              filteredCount++;
+              return; // Skip this video
+            }
+            
+            // Format video data
+            videos.push({
+              id: videoId,
+              title: item.snippet.title,
+              description: item.snippet.description,
+              publishedAt: item.snippet.publishedAt,
+              thumbnails: item.snippet.thumbnails,
+              channelTitle: item.snippet.channelTitle,
+              duration,
+              durationInSeconds,
+              durationFormatted: formatDuration(durationInSeconds),
+              viewCount: parseInt(videoDetails.statistics.viewCount || 0),
+              likeCount: parseInt(videoDetails.statistics.likeCount || 0),
+              commentCount: parseInt(videoDetails.statistics.commentCount || 0)
+            });
           }
         });
-        
-        // Batch requests cost is already tracked in the batch-requests.js module
-        // We're just adding 1 unit to our tracking for clarity
-        totalApiCost += 1;
-      } else {
-        // Fetch video details for duration and other info with caching (original method)
-        // According to YouTube Data API v3 Quota Calculator:
-        // - videos.list costs 1 unit per request (not per video)
-        // - Each part specified costs additional units (snippet = 1, contentDetails = 1, statistics = 1)
-        // Total cost = 1 unit for the request
-        const videoDetailsQuotaCost = 1;
-        
-        const { response: videoDetailsResponse, fromCache: videoDetailsFromCache } = await apiCache.cachedRequest(
-          // Request function
-          () => axios.get('https://www.googleapis.com/youtube/v3/videos', {
-            params: {
-              key: YOUTUBE_API_KEY,
-              id: videoIds.join(','),
-              part: 'contentDetails,statistics,snippet'
-            }
-          }),
-          // Endpoint for cache key
-          'youtube/videos/details',
-          // Parameters for cache key
-          { videoIds: videoIds.join(',') },
-          // Cache options
-          { 
-            ttl: VIDEO_DETAILS_CACHE_TTL, 
-            quotaCost: videoDetailsQuotaCost, // Video details costs 1 unit per request (not per video)
-            forceNetwork: false, // Don't force network request if approaching quota
-            apiType: 'videos' // Track as videos operation
-          }
-        );
-        
-        totalApiCost += videoDetailsQuotaCost;
-
-        if (videoDetailsResponse.data.items && videoDetailsResponse.data.items.length > 0) {
-          // Map search results to video details
-          const videoDetailsMap = {};
-          videoDetailsResponse.data.items.forEach(video => {
-            videoDetailsMap[video.id] = video;
-          });
-
-          // Process each video
-          response.data.items.forEach(item => {
-            const videoId = item.id.videoId;
-            const videoDetails = videoDetailsMap[videoId];
-            
-            if (videoDetails) {
-              // Parse duration
-              const duration = videoDetails.contentDetails.duration;
-              const durationInSeconds = parseDuration(duration);
-              const durationInMinutes = Math.floor(durationInSeconds / 60);
-              
-              // Check if this is a YouTube Short and skip it
-              if (isYouTubeShort(item, videoDetails, durationInSeconds)) {
-                filteredCount++;
-                return; // Skip this video
-              }
-              
-              // Filter by minimum duration if specified
-              if (minDuration > 0 && durationInMinutes < minDuration) {
-                filteredCount++;
-                return; // Skip this video
-              }
-              
-              // Format video data
-              videos.push({
-                id: videoId,
-                title: item.snippet.title,
-                description: item.snippet.description,
-                publishedAt: item.snippet.publishedAt,
-                thumbnails: item.snippet.thumbnails,
-                channelTitle: item.snippet.channelTitle,
-                duration,
-                durationInSeconds,
-                durationFormatted: formatDuration(durationInSeconds),
-                viewCount: parseInt(videoDetails.statistics.viewCount || 0),
-                likeCount: parseInt(videoDetails.statistics.likeCount || 0),
-                commentCount: parseInt(videoDetails.statistics.commentCount || 0)
-              });
-            }
-          });
-        }
       }
 
-      // Return formatted response
-      res.json({
-        videos,
+      // Sort videos based on the requested sort order
+      if (sortBy === 'popularity') {
+        videos.sort((a, b) => b.viewCount - a.viewCount);
+      } else {
+        videos.sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt));
+      }
+
+      // Return the formatted response
+      return res.json({
+        items: videos,
+        totalResults: totalVideos,
+        filteredResults: filteredCount,
         nextPageToken: response.data.nextPageToken || null,
-        totalCount: totalVideos,
-        filteredCount,
-        fromCache,
-        apiCost: fromCache ? 0 : totalApiCost
+        fromCache: fromCache && videoDetailsFromCache,
+        apiCost: (fromCache && videoDetailsFromCache) ? 0 : totalApiCost
       });
     } catch (error) {
-      // If we hit quota limit, return appropriate error
-      if (error.message === 'YouTube API quota exceeded. Please try again tomorrow.') {
-        return res.status(429).json({
-          error: 'YouTube API quota exceeded',
-          message: 'The daily quota for YouTube API requests has been exceeded. Please try again tomorrow.'
-        });
-      }
-      throw error; // Re-throw for the outer catch block
-    }
-  } catch (error) {
-    console.error('Error fetching channel videos:', error);
-    
-    // Handle YouTube API errors specifically
-    if (error.response && error.response.data) {
-      // Check for quota exceeded error
-      const errorDetails = error.response.data.error;
-      if (errorDetails && errorDetails.errors && errorDetails.errors.length > 0) {
-        const apiError = errorDetails.errors[0];
-        
-        if (apiError.reason === 'quotaExceeded') {
-          return res.status(429).json({
-            error: 'YouTube API quota exceeded',
-            message: 'The daily quota for YouTube API requests has been exceeded. Please try again tomorrow.'
-          });
-        }
-      }
-      
-      return res.status(error.response.status || 500).json({ 
-        error: 'Failed to fetch channel videos',
-        details: errorDetails || error.message
+      console.error('Error fetching channel videos:', error);
+      return res.json({ 
+        success: false,
+        error: 'Error fetching channel videos', 
+        message: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       });
     }
-    
-    res.status(500).json({ 
-      error: 'Failed to fetch channel videos',
-      message: error.message
+  } catch (error) {
+    console.error('Error in channel videos API:', error);
+    return res.json({ 
+      success: false,
+      error: 'Internal server error', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }
 
-// Helper function to parse ISO 8601 duration format
+/**
+ * Helper function to parse ISO 8601 duration format
+ * @param {string} duration - ISO 8601 duration string (e.g., PT1H30M15S)
+ * @returns {number} - Duration in seconds
+ */
 function parseDuration(duration) {
-  const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-  
-  const hours = (match[1] && parseInt(match[1])) || 0;
-  const minutes = (match[2] && parseInt(match[2])) || 0;
-  const seconds = (match[3] && parseInt(match[3])) || 0;
-  
+  const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  const hours = parseInt(match[1] || 0);
+  const minutes = parseInt(match[2] || 0);
+  const seconds = parseInt(match[3] || 0);
   return hours * 3600 + minutes * 60 + seconds;
 }
 
-// Helper function to format duration in HH:MM:SS or MM:SS format
+/**
+ * Helper function to format duration in HH:MM:SS or MM:SS format
+ * @param {number} seconds - Duration in seconds
+ * @returns {string} - Formatted duration string
+ */
 function formatDuration(seconds) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
-  const remainingSeconds = seconds % 60;
+  const secs = seconds % 60;
   
   if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  } else {
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
   }
-  
-  return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
 }
 
-// Helper function to check if a video is a YouTube Short
+/**
+ * Helper function to check if a video is a YouTube Short
+ * @param {Object} videoItem - YouTube search result item
+ * @param {Object} videoDetails - YouTube video details
+ * @param {number} durationInSeconds - Video duration in seconds
+ * @returns {boolean} - True if the video is a YouTube Short
+ */
 function isYouTubeShort(videoItem, videoDetails, durationInSeconds) {
-  // YouTube Shorts are typically vertical videos under 60 seconds
-  const isShortDuration = durationInSeconds <= 60;
+  // YouTube Shorts are typically vertical videos with duration <= 60 seconds
+  // They also often have "#shorts" in the title or description
   
-  // Check title for "#shorts" hashtag
-  const titleHasShortTag = videoItem.snippet.title.toLowerCase().includes('#short');
-  
-  // Check description for shorts indicators
-  const descriptionHasShortTag = videoItem.snippet.description.toLowerCase().includes('#short');
-  
-  // Check if video has vertical aspect ratio
-  let isVerticalVideo = false;
-  if (videoDetails.player && videoDetails.player.embedHeight && videoDetails.player.embedWidth) {
-    isVerticalVideo = videoDetails.player.embedHeight > videoDetails.player.embedWidth;
-  } else if (videoItem.snippet.thumbnails && videoItem.snippet.thumbnails.medium) {
-    const thumbnail = videoItem.snippet.thumbnails.medium;
-    if (thumbnail.width && thumbnail.height) {
-      isVerticalVideo = thumbnail.height > thumbnail.width;
-    }
+  // Check duration (Shorts are usually <= 60 seconds)
+  if (durationInSeconds <= 60) {
+    return true;
   }
   
-  // Consider it a Short if it meets at least two criteria or has #shorts in title
-  return (titleHasShortTag && isShortDuration) || 
-         (isShortDuration && isVerticalVideo) || 
-         (titleHasShortTag && descriptionHasShortTag);
+  // Check for #shorts hashtag in title or description
+  const title = videoItem.snippet.title.toLowerCase();
+  const description = videoItem.snippet.description.toLowerCase();
+  
+  if (
+    title.includes('#short') || 
+    description.includes('#short') ||
+    title.includes('shorts') ||
+    description.includes('shorts')
+  ) {
+    return true;
+  }
+  
+  return false;
 }

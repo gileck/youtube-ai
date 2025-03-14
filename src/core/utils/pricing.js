@@ -2,6 +2,7 @@
  * Pricing utility for AI models
  * Prices are in USD per 1000 tokens
  */
+const ModelManager = require('./model-manager');
 
 // Pricing information for AI models (as of March 2025)
 const MODEL_PRICING = {
@@ -83,26 +84,40 @@ const MODEL_PRICING = {
 
 /**
  * Get pricing information for a model
- * @param {string} modelId - The model identifier
+ * @param {string} modelName - The model name or full model ID
  * @returns {Object|null} - The pricing information or null if not found
  */
-function getModelPricing(modelId) {
-  return MODEL_PRICING[modelId] || null;
+function getModelPricing(modelName) {
+  // If modelName is already a full model ID (provider/model), use it directly
+  if (modelName.includes('/')) {
+    return MODEL_PRICING[modelName] || null;
+  }
+  
+  // Otherwise, convert the model name to a full model ID
+  const fullModelId = ModelManager.getFullModelId(modelName);
+  return MODEL_PRICING[fullModelId] || null;
 }
 
 /**
  * Calculate the cost of an API call
- * @param {string} modelId - The model identifier
+ * @param {string} modelName - The model name or full model ID
  * @param {number} inputTokens - Number of input tokens
  * @param {number} outputTokens - Number of output tokens
  * @returns {Object} - The calculated cost information
  */
-function calculateCost(modelId, inputTokens, outputTokens) {
-  const pricing = getModelPricing(modelId);
+function calculateCost(modelName, inputTokens, outputTokens) {
+  // Get pricing information for the model
+  const pricing = getModelPricing(modelName);
   
   if (!pricing) {
+    console.warn(`Pricing information not available for model: ${modelName}`);
+    // Return default pricing if model not found
     return {
-      model: modelId,
+      model: modelName,
+      modelName: modelName,
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
       inputCost: 0,
       outputCost: 0,
       totalCost: 0,
@@ -116,14 +131,14 @@ function calculateCost(modelId, inputTokens, outputTokens) {
   const totalCost = inputCost + outputCost;
   
   return {
-    model: pricing.name || modelId,
+    model: modelName,
+    modelName: pricing.name,
     inputTokens,
     outputTokens,
+    totalTokens: inputTokens + outputTokens,
     inputCost,
     outputCost,
-    totalCost,
-    inputRate: `$${pricing.input.toFixed(6)} per 1K tokens`,
-    outputRate: `$${pricing.output.toFixed(6)} per 1K tokens`
+    totalCost
   };
 }
 
@@ -135,36 +150,50 @@ function calculateCost(modelId, inputTokens, outputTokens) {
  * @returns {Object} - Information about the cheapest model
  */
 function getCheapestModel(inputTokens, outputTokens, modelFilter = null) {
-  let cheapestModel = null;
-  let lowestCost = Infinity;
+  let models = Object.keys(MODEL_PRICING);
   
-  // Filter models if needed
-  const modelsToConsider = modelFilter 
-    ? Object.keys(MODEL_PRICING).filter(id => modelFilter.includes(id))
-    : Object.keys(MODEL_PRICING);
-  
-  // Find the cheapest model
-  for (const modelId of modelsToConsider) {
-    const pricing = MODEL_PRICING[modelId];
-    const cost = (inputTokens / 1000) * pricing.input + (outputTokens / 1000) * pricing.output;
-    
-    if (cost < lowestCost) {
-      lowestCost = cost;
-      cheapestModel = modelId;
-    }
+  // Apply filter if provided
+  if (modelFilter && Array.isArray(modelFilter) && modelFilter.length > 0) {
+    models = models.filter(modelId => modelFilter.includes(modelId));
   }
   
-  if (!cheapestModel) {
+  if (models.length === 0) {
     return {
-      error: 'No suitable model found'
+      model: 'google/gemini-1.5-flash', // Default to Gemini 1.5 Flash if no models available
+      modelName: 'Gemini 1.5 Flash',
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      inputCost: 0,
+      outputCost: 0,
+      totalCost: 0
     };
   }
   
-  // Calculate detailed cost information
-  return {
-    ...calculateCost(cheapestModel, inputTokens, outputTokens),
-    isRecommended: true
-  };
+  // Calculate cost for each model
+  const costs = models.map(modelId => {
+    const pricing = MODEL_PRICING[modelId];
+    const inputCost = (inputTokens / 1000) * pricing.input;
+    const outputCost = (outputTokens / 1000) * pricing.output;
+    const totalCost = inputCost + outputCost;
+    
+    return {
+      model: modelId,
+      modelName: pricing.name,
+      inputTokens,
+      outputTokens,
+      totalTokens: inputTokens + outputTokens,
+      inputCost,
+      outputCost,
+      totalCost
+    };
+  });
+  
+  // Sort by total cost (ascending)
+  costs.sort((a, b) => a.totalCost - b.totalCost);
+  
+  // Return the cheapest model
+  return costs[0];
 }
 
 /**
@@ -174,9 +203,9 @@ function getCheapestModel(inputTokens, outputTokens, modelFilter = null) {
  * @returns {Array} - Array of cost estimates for all models
  */
 function estimateAllModelCosts(inputTokens, outputTokens) {
-  return Object.keys(MODEL_PRICING).map(modelId => 
-    calculateCost(modelId, inputTokens, outputTokens)
-  ).sort((a, b) => a.totalCost - b.totalCost);
+  return Object.keys(MODEL_PRICING).map(modelId => {
+    return calculateCost(modelId, inputTokens, outputTokens);
+  }).sort((a, b) => a.totalCost - b.totalCost);
 }
 
 /**
@@ -184,11 +213,11 @@ function estimateAllModelCosts(inputTokens, outputTokens) {
  * @returns {Promise<Object>} - The updated pricing information
  */
 async function fetchLatestPricing() {
-  // In a real implementation, this would make API calls to fetch the latest pricing
-  // For now, we'll just return the static pricing information
+  // This is a placeholder for future implementation
+  // In a real-world scenario, this would make API calls to fetch the latest pricing
   console.log('Fetching latest pricing information...');
-  console.log('Note: This is using cached pricing information as of March 2025');
   
+  // For now, just return the current pricing
   return MODEL_PRICING;
 }
 

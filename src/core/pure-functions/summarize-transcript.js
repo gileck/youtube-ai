@@ -1,13 +1,16 @@
 /**
  * Pure functions for summarizing transcripts
+ * @deprecated Use the new summarization functions from './summarization' instead
  */
 const { extractVideoId } = require('./get-transcript');
-const TranscriptSummarizer = require('../services/transcript-summarizer');
+const { summarizeChapters } = require('./summarization');
+const { summarizeTranscript: summarizeFullTranscript } = require('./summarization/summarize-transcript');
 
 /**
  * Summarize a transcript using AI
+ * @deprecated Use summarizeChapters or summarizeTranscript from './summarization' instead
  * @param {string} videoId - The YouTube video ID
- * @param {string} transcriptText - The transcript text to summarize
+ * @param {string|Object} transcriptData - The transcript text or transcript with chapters object
  * @param {Object} options - Options for summarization
  * @param {string} options.model - The AI model to use
  * @param {boolean} options.includeChapterBreakdown - Whether to include chapter breakdowns
@@ -17,39 +20,29 @@ const TranscriptSummarizer = require('../services/transcript-summarizer');
  * @param {string} options.currency - Currency for cost calculation
  * @returns {Promise<Object>} - The generated summary result
  */
-async function summarizeTranscript(videoId, transcriptText, options = {}) {
+async function summarizeTranscript(videoId, transcriptData, options = {}) {
   try {
-    // Create a new TranscriptSummarizer instance with the provided options
-    const summarizer = new TranscriptSummarizer({
-      model: options.model,
-      includeChapterBreakdown: options.includeChapterBreakdown,
-      chunkingStrategy: options.chunkingStrategy || 'chapter',
-      parallelProcessing: options.parallelProcessing,
-      maxConcurrentRequests: options.maxConcurrentRequests,
-      currency: options.currency
-    });
-
-    // Call the summarize method from the TranscriptSummarizer class
-    const summaryResult = await summarizer.summarize(transcriptText, options);
-
-    // Return the result in the expected format for pure functions
-    return {
-      videoId,
-      text: summaryResult.text,
-      usage: summaryResult.usage,
-      cost: summaryResult.cost,
-      processingTime: summaryResult.processingTime,
-      metadata: {
-        options: {
-          model: options.model || summarizer.config.model,
-          includeChapterBreakdown: options.includeChapterBreakdown || summarizer.config.includeChapterBreakdown,
-          chunkingStrategy: options.chunkingStrategy || summarizer.config.chunkingStrategy,
-          parallelProcessing: options.parallelProcessing || summarizer.config.parallelProcessing,
-          maxConcurrentRequests: options.maxConcurrentRequests || summarizer.config.maxConcurrentRequests,
-          currency: options.currency || summarizer.config.currency
-        }
-      }
-    };
+    // Determine if we have a structured transcript with chapters or just text
+    const hasChapterContent = transcriptData && 
+                             typeof transcriptData === 'object' && 
+                             transcriptData.chapterContent && 
+                             Object.keys(transcriptData.chapterContent).length > 0;
+    
+    if (hasChapterContent) {
+      // Use chapter-based summarization if we have chapters
+      console.log(`[DEPRECATED] Using chapter-based summarization with ${Object.keys(transcriptData.chapterContent).length} chapters`);
+      console.log('Consider using summarizeChapters from "./summarization" directly');
+      return await summarizeChapters(videoId, transcriptData.chapterContent, options);
+    } else {
+      // Use full transcript summarization
+      const contentToSummarize = typeof transcriptData === 'string' 
+        ? transcriptData 
+        : (transcriptData.formattedText || JSON.stringify(transcriptData));
+      
+      console.log('[DEPRECATED] Using full transcript summarization');
+      console.log('Consider using summarizeTranscript from "./summarization" directly');
+      return await summarizeFullTranscript(videoId, contentToSummarize, options);
+    }
   } catch (error) {
     console.error(`Error summarizing transcript for video ${videoId}:`, error.message);
     return {

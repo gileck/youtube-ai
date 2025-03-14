@@ -105,6 +105,42 @@ function convertToFormattedText(combinedData) {
 }
 
 /**
+ * Organizes transcript content by chapters
+ * @param {Array} combinedData - Combined transcript and chapters data
+ * @returns {Object} - Object with chapter titles as keys and content as values
+ */
+function organizeContentByChapters(combinedData) {
+  const chapterContent = {};
+  let currentChapter = null;
+  
+  // First, identify all chapters and initialize with empty content
+  for (const item of combinedData) {
+    if (item.type === 'chapter') {
+      const timestamp = formatTimestamp(item.start);
+      const chapterTitle = `[${timestamp}] ${item.title}`;
+      chapterContent[chapterTitle] = '';
+    }
+  }
+  
+  // Then populate content for each chapter
+  for (const item of combinedData) {
+    if (item.type === 'chapter') {
+      const timestamp = formatTimestamp(item.start);
+      currentChapter = `[${timestamp}] ${item.title}`;
+    } else if (item.type === 'transcript' && currentChapter) {
+      chapterContent[currentChapter] += `${item.text}\n`;
+    }
+  }
+  
+  // Trim whitespace from each chapter's content
+  Object.keys(chapterContent).forEach(key => {
+    chapterContent[key] = chapterContent[key].trim();
+  });
+  
+  return chapterContent;
+}
+
+/**
  * Gets the transcript with chapters for a YouTube video
  * @param {string} videoId - The YouTube video ID
  * @param {Object} transcriptData - The transcript data from getTranscript
@@ -127,13 +163,17 @@ function getTranscriptWithChapters(videoId, transcriptData, chaptersData, option
     // Combine transcript and chapters
     const combinedData = combineTranscriptAndChapters(transcript, filteredChapters);
     
-    // Convert to formatted text
+    // Convert to formatted text (keeping for backward compatibility)
     const formattedText = convertToFormattedText(combinedData);
+    
+    // Organize content by chapters (new approach)
+    const chapterContent = organizeContentByChapters(combinedData);
 
     return {
       videoId,
       combinedData,
       formattedText,
+      chapterContent, // New field with structured chapter content
       metadata: {
         transcriptSegments: transcript.length,
         chapters: filteredChapters.length,
@@ -147,6 +187,7 @@ function getTranscriptWithChapters(videoId, transcriptData, chaptersData, option
       videoId,
       combinedData: [],
       formattedText: '',
+      chapterContent: {}, // Empty object for structured chapter content
       metadata: {
         transcriptSegments: 0,
         chapters: 0,
@@ -162,5 +203,6 @@ module.exports = {
   shouldFilterChapter,
   combineTranscriptAndChapters,
   convertToFormattedText,
+  organizeContentByChapters, // Export the new function
   getTranscriptWithChapters
 };

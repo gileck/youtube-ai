@@ -30,13 +30,16 @@ export default async function handler(req, res) {
     // If it's already a channel ID (starts with UC), just return it
     if (q.startsWith('UC')) {
       return res.json({
-        channelId: q,
-        title: 'Channel', // We'll fetch the full details later
-        description: '',
-        thumbnails: {
-          default: { url: '' },
-          medium: { url: '' }
-        },
+        items: [{
+          channelId: q,
+          title: 'Channel', // We'll fetch the full details later
+          description: '',
+          thumbnails: {
+            default: { url: '' },
+            medium: { url: '' }
+          }
+        }],
+        totalResults: 1,
         fromCache: false,
         apiCost: 0
       });
@@ -88,10 +91,13 @@ export default async function handler(req, res) {
       
       // Return the channel ID and basic info
       res.json({
-        channelId: channel.id.channelId,
-        title: channel.snippet.title,
-        description: channel.snippet.description,
-        thumbnails: channel.snippet.thumbnails,
+        items: [{
+          channelId: channel.id.channelId,
+          title: channel.snippet.title,
+          description: channel.snippet.description,
+          thumbnails: channel.snippet.thumbnails
+        }],
+        totalResults: 1,
         fromCache,
         apiCost: fromCache ? 0 : searchQuotaCost
       });
@@ -127,7 +133,8 @@ export default async function handler(req, res) {
         }
       }
       
-      return res.status(error.response.status || 500).json({ 
+      return res.json({ 
+        success: false,
         error: 'Failed to search for channel',
         details: errorDetails || error.message,
         fromCache: false,
@@ -135,11 +142,13 @@ export default async function handler(req, res) {
       });
     }
     
-    res.status(500).json({ 
+    res.json({ 
+      success: false,
       error: 'Failed to search for channel',
       message: error.message,
       fromCache: false,
-      apiCost: 0
+      apiCost: 0,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 }

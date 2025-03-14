@@ -11,8 +11,10 @@ import {
   getChapters, 
   getTranscriptWithChapters,
   getVideoInfo,
-  summarizeTranscript 
+  summarizeChapters
 } from '../../core/pure-functions';
+// Import the transcript summarizer for full transcript fallback
+import { summarizeTranscript } from '../../core/pure-functions/summarization';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -95,6 +97,14 @@ export default async function handler(req, res) {
       }
     );
 
+    // Prepare video metadata for summarization
+    const videoMetadata = {
+      title: videoInfo.title,
+      description: videoInfo.description || '',
+      channelName: videoInfo.channel.name,
+      publishDate: videoInfo.publishDate
+    };
+
     // Generate summary with options from centralized config
     const summaryOptions = {
       model: model || config.ai.model,
@@ -102,19 +112,43 @@ export default async function handler(req, res) {
       parallelProcessing: config.ai.parallelProcessing,
       maxConcurrentRequests: config.ai.maxConcurrentRequests,
       chunkingStrategy: config.ai.chunkingStrategy,
-      includeChapterBreakdown: config.ai.includeChapterBreakdown
+      includeChapterBreakdown: config.ai.includeChapterBreakdown,
+      includeVideoMetadata: config.ai.includeVideoMetadata !== false,
+      videoMetadata // Pass video metadata to summarization functions
     };
     
-    // Use the formatted text for summarization
-    const summaryResult = await summarizeTranscript(
-      videoId, 
-      transcriptWithChapters.formattedText, 
-      summaryOptions
-    );
+    // Check if we have chapter content
+    const hasChapterContent = transcriptWithChapters.chapterContent && 
+                              Object.keys(transcriptWithChapters.chapterContent).length > 0;
+    
+    let summaryResult;
+    
+    if (hasChapterContent) {
+      // Use chapter-based summarization if we have chapters
+      console.log(`Using chapter-based summarization with ${Object.keys(transcriptWithChapters.chapterContent).length} chapters`);
+      summaryResult = await summarizeChapters(
+        videoId, 
+        transcriptWithChapters.chapterContent, 
+        summaryOptions
+      );
+    } else {
+      // Fall back to full transcript summarization if no chapters are available
+      console.log('No chapters found. Falling back to full transcript summarization');
+      summaryResult = await summarizeTranscript(
+        videoId, 
+        transcriptWithChapters.formattedText, 
+        summaryOptions
+      );
+    }
 
     if (!summaryResult || !summaryResult.text) {
       console.error('Failed to generate summary:', summaryResult);
-      return res.status(500).json({ error: 'Failed to generate summary' });
+      return res.json({ 
+        success: false,
+        error: 'Failed to generate summary', 
+        message: 'Failed to generate summary',
+        stack: process.env.NODE_ENV === 'development' ? 'Failed to generate summary' : undefined
+      });
     }
 
     // Add debugging information
@@ -122,7 +156,7 @@ export default async function handler(req, res) {
     console.log('Usage information:', summaryResult.usage);
     console.log('Cost information:', summaryResult.cost);
 
-    // Get cost information from the summarizeTranscript result
+    // Get cost information from the summary result
     const costInfo = {
       videoId,
       model: summaryOptions.model,
@@ -153,7 +187,8 @@ export default async function handler(req, res) {
       channelName: videoInfo.channel.name,
       publishDate: videoInfo.publishDate,
       thumbnails: videoInfo.thumbnails,
-      videoUrl: videoInfo.url
+      videoUrl: videoInfo.url,
+      chapterSummaries: summaryResult.chapterSummaries || [] // Include chapter summaries if available
     };
 
     // Cache the result
@@ -162,6 +197,11 @@ export default async function handler(req, res) {
     res.json(result);
   } catch (error) {
     console.error('Error summarizing transcript:', error);
-    res.status(500).json({ error: 'Failed to summarize transcript' });
+    res.json({ 
+      success: false,
+      error: 'Failed to summarize transcript', 
+      message: error.message || 'An unexpected error occurred',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }

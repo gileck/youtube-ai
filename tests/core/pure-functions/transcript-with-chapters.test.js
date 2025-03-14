@@ -4,7 +4,8 @@
 const { 
   shouldFilterChapter, 
   combineTranscriptAndChapters, 
-  convertToFormattedText, 
+  convertToFormattedText,
+  organizeContentByChapters,
   getTranscriptWithChapters 
 } = require('../../../src/core/pure-functions/transcript-with-chapters');
 
@@ -121,15 +122,66 @@ describe('convertToFormattedText', () => {
     
     const result = convertToFormattedText(combinedData);
     
-    expect(result).toContain('# [00:00:00] Intro');
+    expect(result).toContain('# [00:00] Intro');
     expect(result).toContain('Hello');
     expect(result).toContain('World');
-    expect(result).toContain('# [00:01:00] Main');
+    expect(result).toContain('# [01:00] Main');
     expect(result).toContain('Test');
   });
 
   test('handles empty combined data', () => {
     expect(convertToFormattedText([])).toBe('');
+  });
+});
+
+describe('organizeContentByChapters', () => {
+  test('organizes content by chapters correctly', () => {
+    const combinedData = [
+      { type: 'chapter', title: 'Intro', start: 0, end: 60 },
+      { type: 'transcript', text: 'Hello', start: 0, end: 1 },
+      { type: 'transcript', text: 'World', start: 1, end: 2 },
+      { type: 'chapter', title: 'Main', start: 60, end: 120 },
+      { type: 'transcript', text: 'Test', start: 60, end: 61 }
+    ];
+    
+    const result = organizeContentByChapters(combinedData);
+    
+    expect(Object.keys(result)).toHaveLength(2);
+    expect(Object.keys(result)[0]).toContain('[00:00] Intro');
+    expect(Object.keys(result)[1]).toContain('[01:00] Main');
+    
+    const introContent = result[Object.keys(result)[0]];
+    const mainContent = result[Object.keys(result)[1]];
+    
+    expect(introContent).toContain('Hello');
+    expect(introContent).toContain('World');
+    expect(mainContent).toContain('Test');
+  });
+
+  test('handles empty combined data', () => {
+    expect(Object.keys(organizeContentByChapters([]))).toHaveLength(0);
+  });
+  
+  test('handles combined data with no chapters', () => {
+    const combinedData = [
+      { type: 'transcript', text: 'Hello', start: 0, end: 1 },
+      { type: 'transcript', text: 'World', start: 1, end: 2 }
+    ];
+    
+    expect(Object.keys(organizeContentByChapters(combinedData))).toHaveLength(0);
+  });
+  
+  test('handles combined data with no transcript segments', () => {
+    const combinedData = [
+      { type: 'chapter', title: 'Intro', start: 0, end: 60 },
+      { type: 'chapter', title: 'Main', start: 60, end: 120 }
+    ];
+    
+    const result = organizeContentByChapters(combinedData);
+    
+    expect(Object.keys(result)).toHaveLength(2);
+    expect(result[Object.keys(result)[0]]).toBe('');
+    expect(result[Object.keys(result)[1]]).toBe('');
   });
 });
 
@@ -153,11 +205,17 @@ describe('getTranscriptWithChapters', () => {
     
     expect(result.videoId).toBe(videoId);
     expect(result.combinedData).toHaveLength(3); // 1 chapter + 2 transcript segments
-    expect(result.formattedText).toContain('# [00:00:00] Intro');
+    expect(result.formattedText).toContain('# [00:00] Intro');
     expect(result.formattedText).toContain('Hello');
     expect(result.formattedText).toContain('World');
     expect(result.metadata.transcriptSegments).toBe(2);
     expect(result.metadata.chapters).toBe(1);
+    
+    expect(result.chapterContent).toBeDefined();
+    expect(Object.keys(result.chapterContent)).toHaveLength(1);
+    expect(Object.keys(result.chapterContent)[0]).toContain('[00:00] Intro');
+    expect(result.chapterContent[Object.keys(result.chapterContent)[0]]).toContain('Hello');
+    expect(result.chapterContent[Object.keys(result.chapterContent)[0]]).toContain('World');
   });
 
   test('filters chapters based on options', () => {
@@ -188,7 +246,6 @@ describe('getTranscriptWithChapters', () => {
     expect(result.metadata.chapters).toBe(2); // 3 original - 1 filtered
     expect(result.metadata.filteredChapters).toBe(1);
     
-    // Check that the filtered chapter is not in the combined data
     const chapterTitles = result.combinedData
       .filter(item => item.type === 'chapter')
       .map(item => item.title);
@@ -196,18 +253,23 @@ describe('getTranscriptWithChapters', () => {
     expect(chapterTitles).toContain('Intro');
     expect(chapterTitles).toContain('Main');
     expect(chapterTitles).not.toContain('Sponsor');
+    
+    expect(Object.keys(result.chapterContent)).toHaveLength(2);
+    const chapterContentTitles = Object.keys(result.chapterContent);
+    expect(chapterContentTitles.some(title => title.includes('Intro'))).toBe(true);
+    expect(chapterContentTitles.some(title => title.includes('Main'))).toBe(true);
+    expect(chapterContentTitles.some(title => title.includes('Sponsor'))).toBe(false);
   });
 
   test('handles errors gracefully', () => {
     const videoId = 'testVideoId';
-    const transcriptData = null; // Invalid data to trigger error
-    const chaptersData = null; // Invalid data to trigger error
     
-    const result = getTranscriptWithChapters(videoId, transcriptData, chaptersData);
+    const result = getTranscriptWithChapters(videoId, null, null);
     
     expect(result.videoId).toBe(videoId);
-    expect(result.combinedData).toEqual([]);
+    expect(result.combinedData).toHaveLength(0);
     expect(result.formattedText).toBe('');
+    expect(result.chapterContent).toEqual({});
     expect(result.metadata.error).toBeDefined();
   });
 });

@@ -15,43 +15,39 @@ const ApiUsageStats = ({ onClose }) => {
   const [apiUsage, setApiUsage] = useState({
     daily: 0,
     timestamp: null,
-    quota: config.youtube.api.quotaLimit || 10000 // Get quota from config
+    quota: config.youtube.api.quotaLimit || 10000, // Get quota from config
+    cacheStats: null
   });
   const [expanded, setExpanded] = useState(false);
   const [dashboardOpen, setDashboardOpen] = useState(false);
 
   useEffect(() => {
-    // Load API usage from localStorage
-    try {
-      const savedCount = localStorage.getItem('youtube_api_call_count');
-      if (savedCount) {
-        const parsed = JSON.parse(savedCount);
-        setApiUsage(prev => ({
-          ...prev,
-          daily: parsed.daily,
-          timestamp: parsed.timestamp
-        }));
-      }
-    } catch (e) {
-      console.error('Error loading API usage stats:', e);
-    }
-
-    // Set up interval to refresh stats every 30 seconds
-    const interval = setInterval(() => {
+    // Fetch API usage stats from the server
+    const fetchApiUsage = async () => {
       try {
-        const savedCount = localStorage.getItem('youtube_api_call_count');
-        if (savedCount) {
-          const parsed = JSON.parse(savedCount);
-          setApiUsage(prev => ({
-            ...prev,
-            daily: parsed.daily,
-            timestamp: parsed.timestamp
-          }));
+        const response = await fetch('/api/usage/stats');
+        const data = await response.json();
+        
+        if (response.ok && data.success !== false) {
+          setApiUsage({
+            daily: data.daily || 0,
+            quota: data.quota || 10000,
+            timestamp: data.timestamp || new Date().toISOString(),
+            cacheStats: data.cacheStats || null
+          });
+        } else if (data.success === false) {
+          console.error('Error loading API usage stats:', data.error || data.message);
         }
       } catch (e) {
-        console.error('Error refreshing API usage stats:', e);
+        console.error('Error loading API usage stats:', e);
       }
-    }, 30000);
+    };
+
+    // Initial fetch
+    fetchApiUsage();
+
+    // Set up interval to refresh stats every 30 seconds
+    const interval = setInterval(fetchApiUsage, 30000);
 
     return () => clearInterval(interval);
   }, []);
@@ -107,7 +103,7 @@ const ApiUsageStats = ({ onClose }) => {
           <Box 
             sx={{ 
               position: 'fixed', 
-              bottom: 16, 
+              bottom: 56, 
               right: 16, 
               zIndex: 1000
             }}
@@ -151,108 +147,121 @@ const ApiUsageStats = ({ onClose }) => {
         </Tooltip>
         
         {/* Detailed Dashboard Dialog */}
-        <ApiUsageDashboard 
-          open={dashboardOpen} 
-          onClose={() => setDashboardOpen(false)} 
-        />
+        {dashboardOpen && (
+          <ApiUsageDashboard 
+            open={dashboardOpen} 
+            onClose={() => setDashboardOpen(false)} 
+          />
+        )}
       </>
     );
   }
 
   return (
     <>
-      <Box 
-        sx={{ 
-          position: 'fixed', 
-          bottom: 16, 
-          right: 16, 
+      <Paper
+        elevation={3}
+        sx={{
+          position: 'fixed',
+          bottom: 56, // Position above the app bar
+          right: 16,
+          width: expanded ? 300 : 180,
           zIndex: 1000,
-          maxWidth: 350
+          overflow: 'hidden',
+          transition: 'width 0.3s ease',
+          p: 2
         }}
       >
-        <Paper elevation={3} sx={{ p: 2, borderRadius: 2 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-            <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              {usagePercentage >= 70 && <WarningIcon color="warning" />}
-              YouTube API Usage
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <Tooltip title="Minimize">
-                <IconButton 
-                  size="small" 
-                  onClick={toggleExpanded}
-                  sx={{ mr: 1 }}
-                >
-                  <MinimizeIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              {onClose && (
-                <Button 
-                  size="small" 
-                  onClick={onClose}
-                  variant="text"
-                >
-                  Close
-                </Button>
-              )}
-            </Box>
-          </Box>
-          
-          <Box sx={{ mb: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
-              <Typography variant="body2">
-                {apiUsage.daily} / {apiUsage.quota} units
-              </Typography>
-              <Typography variant="body2" color={getStatusColor()}>
-                {usagePercentage.toFixed(1)}%
-              </Typography>
-            </Box>
-            <LinearProgress 
-              variant="determinate" 
-              value={usagePercentage} 
-              color={getStatusColor()}
-              sx={{ height: 8, borderRadius: 1 }}
-            />
-          </Box>
-          
-          <Typography variant="body2" color="text.secondary">
-            Last updated: {getLastUpdated()}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: '0.9rem' }}>
+            {usagePercentage >= 70 && <WarningIcon color="warning" fontSize="small" />}
+            YouTube API Usage
           </Typography>
-          
-          {usagePercentage >= 70 && (
-            <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
-              {usagePercentage >= 90 
-                ? 'Warning: API quota almost depleted! Some features may be unavailable.' 
-                : 'Warning: Approaching API quota limit.'}
-            </Typography>
-          )}
-          
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-            <Button 
-              size="small" 
-              variant="outlined" 
-              onClick={handleReset}
-            >
-              Reset Counter
-            </Button>
-            
-            <Button 
-              size="small" 
-              variant="outlined" 
-              onClick={handleOpenDashboard}
-              startIcon={<BarChartIcon />}
-            >
-              Details
-            </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Tooltip title="Minimize">
+              <IconButton 
+                size="small" 
+                onClick={toggleExpanded}
+                sx={{ mr: 1 }}
+              >
+                <MinimizeIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            {onClose && (
+              <Button 
+                size="small" 
+                onClick={onClose}
+                variant="text"
+              >
+                Close
+              </Button>
+            )}
           </Box>
-        </Paper>
-      </Box>
+        </Box>
+        
+        <Box sx={{ mb: 2 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+            <Typography variant="body2">
+              {apiUsage.daily} / {apiUsage.quota} units
+            </Typography>
+            <Typography variant="body2" color={getStatusColor()}>
+              {usagePercentage.toFixed(1)}%
+            </Typography>
+          </Box>
+          <LinearProgress 
+            variant="determinate" 
+            value={usagePercentage} 
+            color={getStatusColor()}
+            sx={{ height: 8, borderRadius: 1 }}
+          />
+        </Box>
+        
+        <Typography variant="body2" color="text.secondary">
+          Last updated: {getLastUpdated()}
+        </Typography>
+        
+        {apiUsage.cacheStats && (
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Cache: {apiUsage.cacheStats.hits || 0} hits / {apiUsage.cacheStats.misses || 0} misses
+            </Typography>
+          </Box>
+        )}
+        
+        {usagePercentage >= 70 && (
+          <Typography variant="body2" color="warning.main" sx={{ mt: 1 }}>
+            {usagePercentage >= 90 
+              ? 'Warning: API quota almost depleted! Some features may be unavailable.' 
+              : 'Warning: Approaching API quota limit.'}
+          </Typography>
+        )}
+        
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
+          <Button 
+            size="small" 
+            variant="outlined" 
+            onClick={handleReset}
+          >
+            Reset Counter
+          </Button>
+          
+          <Button 
+            size="small" 
+            variant="outlined" 
+            onClick={handleOpenDashboard}
+            startIcon={<BarChartIcon />}
+          >
+            Details
+          </Button>
+        </Box>
+      </Paper>
       
-      {/* Detailed Dashboard Dialog */}
-      <ApiUsageDashboard 
-        open={dashboardOpen} 
-        onClose={() => setDashboardOpen(false)} 
-      />
+      {dashboardOpen && (
+        <ApiUsageDashboard 
+          open={dashboardOpen} 
+          onClose={() => setDashboardOpen(false)} 
+        />
+      )}
     </>
   );
 };

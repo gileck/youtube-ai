@@ -11,7 +11,8 @@ const {
 const { 
   shouldFilterChapter, 
   combineTranscriptAndChapters, 
-  convertToFormattedText, 
+  convertToFormattedText,
+  organizeContentByChapters,
   getTranscriptWithChapters 
 } = require('./transcript-with-chapters');
 const { summarizeTranscript } = require('./summarize-transcript');
@@ -19,6 +20,9 @@ const {
   getVideoInfo,
   extractVideoId: extractVideoIdInfo
 } = require('./get-video-info');
+const {
+  summarizeChapters
+} = require('./summarization');
 
 // Export a unified extractVideoId function
 function extractVideoId(url) {
@@ -40,10 +44,14 @@ module.exports = {
   shouldFilterChapter,
   combineTranscriptAndChapters,
   convertToFormattedText,
+  organizeContentByChapters,
   getTranscriptWithChapters,
   
-  // Export functions from summarize-transcript.js
+  // Export legacy summarize-transcript.js (deprecated)
   summarizeTranscript,
+  
+  // Export new summarization functions
+  summarizeChapters,
   
   // Export functions from get-video-info.js
   getVideoInfo

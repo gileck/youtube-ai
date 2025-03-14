@@ -28,6 +28,7 @@ import YouTubeIcon from '@mui/icons-material/YouTube';
 import SubscriptionsIcon from '@mui/icons-material/Subscriptions';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
+import { useSettings } from '../contexts/SettingsContext';
 
 /**
  * History page component that displays a list of summarized videos
@@ -43,6 +44,9 @@ export function History() {
     // State for confirmation dialog
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [itemToDelete, setItemToDelete] = useState(null);
+    
+    // Get cache settings from context
+    const { cacheEnabled } = useSettings();
 
     // Custom components for ReactMarkdown (same as in Main.js)
     const MarkdownComponents = {

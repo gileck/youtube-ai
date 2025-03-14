@@ -17,13 +17,19 @@ axios.interceptors.request.use(
     config.metadata = {
       startTime: Date.now()
     };
-    
+
     // Check if this is a GET request that might be cached
     if (config.method === 'get') {
+      // Skip cache if explicitly requested
+      if (config.params?.skipCache === true) {
+        config.metadata.skipCache = true;
+        return config;
+      }
+
       // Create a cache key from the URL and params
       const params = config.params ? JSON.stringify(config.params) : '';
       const cacheKey = `${config.url}:${params}`;
-      
+
       // Check if we've seen this request before (might be cached)
       if (requestCache.has(cacheKey)) {
         config.fromCache = true;
@@ -32,14 +38,14 @@ axios.interceptors.request.use(
       } else {
         // Add to request cache with a TTL of 1 hour
         requestCache.set(cacheKey, Date.now());
-        
+
         // Clean up old cache entries
-        setTimeout(() => {
-          requestCache.delete(cacheKey);
-        }, 3600000); // 1 hour
+        // setTimeout(() => {
+        //   requestCache.delete(cacheKey);
+        // }, 3600000); // 1 hour
       }
     }
-    
+
     return config;
   },
   error => {
@@ -54,24 +60,29 @@ axios.interceptors.response.use(
     const endTime = Date.now();
     const startTime = response.config.metadata.startTime;
     response.config.metadata.duration = endTime - startTime;
-    
+
+    // If skipCache was set, don't mark as cached
+    if (response.config.metadata.skipCache) {
+      return response;
+    }
+
     // Mark response as cached if it came back very quickly (< 50ms)
     // This is a heuristic to detect cached responses
     if (response.config.metadata.duration < 50 && !response.config.fromCache) {
       console.log(`[Axios Interceptor] Fast response detected (${response.config.metadata.duration}ms), might be cached`);
       response.config.metadata.potentiallyFromCache = true;
-      
+
       // Add a header to indicate this might be from cache
       if (!response.headers) response.headers = {};
       response.headers['x-potentially-from-cache'] = 'true';
     }
-    
+
     // If the response was marked as fromCache in the request interceptor
     if (response.config.fromCache) {
       if (!response.headers) response.headers = {};
       response.headers['x-from-cache'] = 'true';
     }
-    
+
     return response;
   },
   error => {
@@ -81,7 +92,7 @@ axios.interceptors.response.use(
       const startTime = error.response.config.metadata.startTime;
       error.response.config.metadata.duration = endTime - startTime;
     }
-    
+
     return Promise.reject(error);
   }
 );

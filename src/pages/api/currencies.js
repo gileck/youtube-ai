@@ -11,6 +11,11 @@ export default function handler(req, res) {
     res.json(currencies);
   } catch (error) {
     console.error('Error getting currencies:', error);
-    res.status(500).json({ error: 'Failed to get currencies' });
+    res.status(200).json({ 
+      success: false,
+      error: 'Failed to get currencies',
+      message: error.message || 'An unexpected error occurred',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 }
