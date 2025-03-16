@@ -44,7 +44,7 @@ try {
         localStorage.setItem('youtube_api_call_count', JSON.stringify(apiCallCount));
       }
     }
-    
+
     // Also load breakdown if available
     const savedBreakdown = localStorage.getItem('youtube_api_usage_breakdown');
     if (savedBreakdown && isToday) {
@@ -63,11 +63,11 @@ try {
 const updateApiCallCount = (count = 1, type = 'other') => {
   // Ensure count is a number
   count = Number(count) || 1;
-  
+
   // Update total daily count
   apiCallCount.daily += count;
   apiCallCount.timestamp = Date.now();
-  
+
   // Update breakdown
   if (type === 'search') {
     apiCallCount.breakdown.search += count;
@@ -78,13 +78,13 @@ const updateApiCallCount = (count = 1, type = 'other') => {
   } else {
     apiCallCount.breakdown.other += count;
   }
-  
+
   // Save to localStorage if available
   try {
     if (typeof window !== 'undefined') {
       localStorage.setItem('youtube_api_call_count', JSON.stringify(apiCallCount));
       localStorage.setItem('youtube_api_usage_breakdown', JSON.stringify(apiCallCount.breakdown));
-      
+
       // Track history of API usage
       const history = JSON.parse(localStorage.getItem('youtube_api_usage_history') || '[]');
       history.push({
@@ -94,14 +94,14 @@ const updateApiCallCount = (count = 1, type = 'other') => {
         type: type,
         details: `Added ${count} units for ${type}`
       });
-      
+
       // Keep only the last 50 entries
       if (history.length > 50) {
         history.shift();
       }
-      
+
       localStorage.setItem('youtube_api_usage_history', JSON.stringify(history));
-      
+
       // Log the update for debugging
       console.log(`[API Usage] Added ${count} units for ${type}. Total: ${apiCallCount.daily}`);
     }
@@ -151,7 +151,7 @@ const generateCacheKey = (endpoint, params) => {
       sortedParams[key] = params[key];
     });
   }
-  
+
   // Create a stable string representation
   return `${endpoint}:${JSON.stringify(sortedParams)}`;
 };
@@ -173,7 +173,7 @@ const getCachedResponse = (cacheKey) => {
     console.log(`[API Cache] Memory cache expired for ${cacheKey}`);
     memoryCache.delete(cacheKey);
   }
-  
+
   // Check localStorage cache if available
   try {
     if (typeof window !== 'undefined') {
@@ -199,7 +199,7 @@ const getCachedResponse = (cacheKey) => {
   } catch (e) {
     console.error('Error reading from localStorage cache:', e);
   }
-  
+
   console.log(`[API Cache] No cache found for ${cacheKey}`);
   return null;
 };
@@ -215,11 +215,11 @@ const cacheResponse = (cacheKey, data, ttl = 3600000) => { // Default: 1 hour
     data,
     expiresAt: Date.now() + ttl
   };
-  
+
   // Cache in memory
   memoryCache.set(cacheKey, cacheItem);
   console.log(`[API Cache] Cached in memory: ${cacheKey}`);
-  
+
   // Cache in localStorage if available
   try {
     if (typeof window !== 'undefined') {
@@ -252,15 +252,15 @@ const cachedRequest = async (requestFn, endpoint, params, options = {}) => {
     forceNetwork = false, // Force network request even if approaching quota
     apiType = 'other' // Type of API call for tracking
   } = options;
-  
+
   // Generate cache key
   const cacheKey = generateCacheKey(endpoint, params);
-  
+
   // Check if we're exceeding quota
   if (hasExceededQuotaLimit(quotaLimit) && !forceNetwork) {
     throw new Error('YouTube API quota exceeded. Please try again tomorrow.');
   }
-  
+
   // Check if we're approaching quota limit
   if (isApproachingQuotaLimit(quotaLimit) && !forceNetwork) {
     // Use cached data if available, regardless of TTL
@@ -276,14 +276,14 @@ const cachedRequest = async (requestFn, endpoint, params, options = {}) => {
         timestamp: Date.now(),
         apiType
       });
-      
+
       console.log(`[API Cache] Cache hit for ${endpoint}`);
       return { response: cachedData, fromCache: true };
     }
     // If no cache and approaching limit, proceed with caution
     console.warn('Approaching YouTube API quota limit. Using network request with caution.');
   }
-  
+
   // Check cache if not bypassing
   if (!bypassCache) {
     const cachedData = getCachedResponse(cacheKey);
@@ -298,12 +298,12 @@ const cachedRequest = async (requestFn, endpoint, params, options = {}) => {
         timestamp: Date.now(),
         apiType
       });
-      
+
       console.log(`[API Cache] Cache hit for ${endpoint}`);
       return { response: cachedData, fromCache: true };
     }
   }
-  
+
   // Check for in-flight request with same parameters
   if (inflightRequests.has(cacheKey)) {
     logApiCallToHistory({
@@ -316,31 +316,31 @@ const cachedRequest = async (requestFn, endpoint, params, options = {}) => {
       timestamp: Date.now(),
       apiType
     });
-    
+
     // Wait for the existing request to complete
     console.log(`[API Cache] Using in-flight request for ${endpoint}`);
     const result = await inflightRequests.get(cacheKey);
     return { response: result, fromCache: false, fromInflight: true };
   }
-  
+
   // Make the request and store the promise
   const requestPromise = (async () => {
     let response;
     let error;
     let status = 'success';
     const startTime = Date.now();
-    
+
     try {
       console.log(`[API Cache] Making network request for ${endpoint} (quota cost: ${quotaCost})`);
       response = await requestFn();
-      
+
       // Update API call count with type and correct quota cost
       // This follows the YouTube Data API v3 Quota Calculator guidelines
       updateApiCallCount(quotaCost, apiType);
-      
+
       // Cache the response
       cacheResponse(cacheKey, response, ttl);
-      
+
       return response;
     } catch (err) {
       error = err;
@@ -349,7 +349,7 @@ const cachedRequest = async (requestFn, endpoint, params, options = {}) => {
     } finally {
       // Remove from in-flight requests
       inflightRequests.delete(cacheKey);
-      
+
       // Log the API call to history
       logApiCallToHistory({
         endpoint,
@@ -378,18 +378,18 @@ const cachedRequest = async (requestFn, endpoint, params, options = {}) => {
       });
     }
   })();
-  
+
   // Store the promise to prevent duplicate requests
   inflightRequests.set(cacheKey, requestPromise);
-  
+
   // Wait for the request to complete
   const response = await requestPromise;
-  
+
   // Add cache status to the response
   if (response && response.data) {
     response.data.fromCache = false;
   }
-  
+
   return { response, fromCache: false };
 };
 
@@ -402,18 +402,18 @@ const logApiCallToHistory = (callDetails) => {
     if (typeof window !== 'undefined') {
       // Get existing history or initialize new array
       const history = JSON.parse(localStorage.getItem('youtube_api_call_history') || '[]');
-      
+
       // Add new entry to the beginning of the array (newest first)
       history.unshift({
         id: generateUniqueId(),
         ...callDetails,
         date: new Date().toISOString()
       });
-      
+
       // Limit history size to prevent localStorage from growing too large
       const maxHistorySize = 100;
       const trimmedHistory = history.slice(0, maxHistorySize);
-      
+
       // Save back to localStorage
       localStorage.setItem('youtube_api_call_history', JSON.stringify(trimmedHistory));
     }
@@ -460,7 +460,7 @@ const clearApiCallHistory = () => {
 };
 
 // Export the utilities
-module.exports = {
+export default {
   cachedRequest,
   getCachedResponse,
   cacheResponse,

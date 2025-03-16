@@ -1,10 +1,10 @@
 /**
  * Index file for summarization pure functions
  */
-const { summarizeChapters } = require('./summarize-chapters');
-const { summarizeTranscript } = require('./summarize-transcript');
+import { summarizeChapters } from './summarize-chapters.js';
+import { summarizeTranscript } from './summarize-transcript.js';
 
-module.exports = {
+export {
   summarizeChapters,
   summarizeTranscript
 };

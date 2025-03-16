@@ -1,5 +1,5 @@
 // API route for getting supported currencies
-import Currency from '../../core/utils/currency';
+import Currency from '../../core/utils/currency.js';
 
 export default function handler(req, res) {
   if (req.method !== 'GET') {

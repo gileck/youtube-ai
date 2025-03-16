@@ -2,9 +2,9 @@
  * Pure functions for summarizing transcripts
  * @deprecated Use the new summarization functions from './summarization' instead
  */
-const { extractVideoId } = require('./get-transcript');
-const { summarizeChapters } = require('./summarization');
-const { summarizeTranscript: summarizeFullTranscript } = require('./summarization/summarize-transcript');
+import { extractVideoId } from './get-transcript.js';
+import { summarizeChapters } from './summarization/index.js';
+import { summarizeTranscript as summarizeFullTranscript } from './summarization/summarize-transcript.js';
 
 /**
  * Summarize a transcript using AI
@@ -65,6 +65,6 @@ async function summarizeTranscript(videoId, transcriptData, options = {}) {
   }
 }
 
-module.exports = {
+export {
   summarizeTranscript
 };

@@ -29,25 +29,33 @@ const CURRENCY_SYMBOLS = {
  * Convert an amount from USD to another currency
  * @param {number} usdAmount - Amount in USD
  * @param {string} targetCurrency - Target currency code (USD, ILS, EUR, etc.)
- * @returns {Object} - Converted amount and rate information
+ * @param {number} [decimals=4] - Number of decimal places
+ * @returns {Object} - Conversion result
  */
-function convertFromUsd(usdAmount, targetCurrency = 'USD') {
+function convertFromUsd(usdAmount, targetCurrency = 'USD', decimals = 4) {
   // Default to USD if currency not supported
   if (!EXCHANGE_RATES[targetCurrency]) {
+    console.warn(`Currency ${targetCurrency} not supported, using USD`);
     targetCurrency = 'USD';
   }
-  
-  const rate = EXCHANGE_RATES[targetCurrency];
-  const convertedAmount = usdAmount * rate;
-  const symbol = CURRENCY_SYMBOLS[targetCurrency];
-  
+
+  // Get exchange rate
+  const exchangeRate = EXCHANGE_RATES[targetCurrency];
+
+  // Convert amount
+  const convertedAmount = usdAmount * exchangeRate;
+
+  // Format amount
+  const formattedAmount = formatAmount(convertedAmount, targetCurrency, decimals);
+
+  // Return result
   return {
-    usdAmount,
-    convertedAmount,
-    rate,
-    targetCurrency,
-    formattedUsd: `$${usdAmount.toFixed(4)}`,
-    formattedConverted: `${symbol}${convertedAmount.toFixed(4)}`
+    amount: convertedAmount,
+    formatted: formattedAmount,
+    currency: targetCurrency,
+    exchangeRate,
+    originalAmount: usdAmount,
+    originalCurrency: 'USD'
   };
 }
 
@@ -58,16 +66,21 @@ function convertFromUsd(usdAmount, targetCurrency = 'USD') {
  * @returns {number} - Exchange rate (fromCurrency to toCurrency)
  */
 function getExchangeRate(fromCurrency = 'USD', toCurrency = 'USD') {
-  // Default to 1.0 if currencies not supported
-  if (!EXCHANGE_RATES[fromCurrency] || !EXCHANGE_RATES[toCurrency]) {
-    return 1.0;
+  // Default to USD if currency not supported
+  if (!EXCHANGE_RATES[fromCurrency]) {
+    console.warn(`Currency ${fromCurrency} not supported, using USD`);
+    fromCurrency = 'USD';
   }
-  
-  // Calculate the exchange rate
-  // First convert to USD, then to target currency
+
+  if (!EXCHANGE_RATES[toCurrency]) {
+    console.warn(`Currency ${toCurrency} not supported, using USD`);
+    toCurrency = 'USD';
+  }
+
+  // Calculate exchange rate
   const fromRate = EXCHANGE_RATES[fromCurrency];
   const toRate = EXCHANGE_RATES[toCurrency];
-  
+
   return toRate / fromRate;
 }
 
@@ -81,10 +94,14 @@ function getExchangeRate(fromCurrency = 'USD', toCurrency = 'USD') {
 function formatAmount(amount, currency = 'USD', decimals = 4) {
   // Default to USD if currency not supported
   if (!CURRENCY_SYMBOLS[currency]) {
+    console.warn(`Currency ${currency} not supported, using USD`);
     currency = 'USD';
   }
-  
+
+  // Get currency symbol
   const symbol = CURRENCY_SYMBOLS[currency];
+
+  // Format amount
   return `${symbol}${amount.toFixed(decimals)}`;
 }
 
@@ -95,7 +112,7 @@ function formatAmount(amount, currency = 'USD', decimals = 4) {
 function getSupportedCurrencies() {
   return Object.keys(EXCHANGE_RATES).map(code => ({
     code,
-    symbol: CURRENCY_SYMBOLS[code] || '',
+    symbol: CURRENCY_SYMBOLS[code] || code,
     rate: EXCHANGE_RATES[code]
   }));
 }
@@ -109,7 +126,19 @@ function convertUsdToIls(usdAmount) {
   return convertFromUsd(usdAmount, 'ILS');
 }
 
-module.exports = {
+// Export named exports
+export {
+  convertFromUsd,
+  convertUsdToIls,
+  getSupportedCurrencies,
+  getExchangeRate,
+  formatAmount,
+  EXCHANGE_RATES,
+  CURRENCY_SYMBOLS
+};
+
+// Also export as default for backward compatibility
+export default {
   convertFromUsd,
   convertUsdToIls,
   getSupportedCurrencies,

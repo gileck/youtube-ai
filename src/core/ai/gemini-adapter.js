@@ -1,5 +1,5 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
-const BaseAIAdapter = require('./base-adapter');
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import BaseAIAdapter from './base-adapter.js';
 
 /**
  * Gemini adapter for AI operations
@@ -112,4 +112,4 @@ class GeminiAdapter extends BaseAIAdapter {
   }
 }
 
-module.exports = GeminiAdapter;
+export default GeminiAdapter;

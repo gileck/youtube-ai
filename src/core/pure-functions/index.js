@@ -3,56 +3,57 @@
  * Exports all pure functions from the modules
  */
 
-const { extractVideoId: extractVideoIdTranscript, getTranscript } = require('./get-transcript');
-const { 
-  formatTimestamp, 
+import { extractVideoId as extractVideoIdTranscript, getTranscript } from './get-transcript.js';
+import {
+  formatTimestamp,
   getChapters
-} = require('./get-chapters');
-const { 
-  shouldFilterChapter, 
-  combineTranscriptAndChapters, 
+} from './get-chapters.js';
+import {
+  shouldFilterChapter,
+  combineTranscriptAndChapters,
   convertToFormattedText,
   organizeContentByChapters,
-  getTranscriptWithChapters 
-} = require('./transcript-with-chapters');
-const { summarizeTranscript } = require('./summarize-transcript');
-const {
+  getTranscriptWithChapters
+} from './transcript-with-chapters.js';
+import { summarizeTranscript } from './summarize-transcript.js';
+import {
   getVideoInfo,
-  extractVideoId: extractVideoIdInfo
-} = require('./get-video-info');
-const {
+  extractVideoId as extractVideoIdInfo
+} from './get-video-info.js';
+import {
   summarizeChapters
-} = require('./summarization');
+} from './summarization/index.js';
 
 // Export a unified extractVideoId function
 function extractVideoId(url) {
   return extractVideoIdTranscript(url);
 }
 
-module.exports = {
+// Export all functions
+export {
   // Export unified extractVideoId
   extractVideoId,
-  
+
   // Export functions from get-transcript.js
   getTranscript,
-  
+
   // Export functions from get-chapters.js
   formatTimestamp,
   getChapters,
-  
+
   // Export functions from transcript-with-chapters.js
   shouldFilterChapter,
   combineTranscriptAndChapters,
   convertToFormattedText,
   organizeContentByChapters,
   getTranscriptWithChapters,
-  
+
   // Export legacy summarize-transcript.js (deprecated)
   summarizeTranscript,
-  
+
   // Export new summarization functions
   summarizeChapters,
-  
+
   // Export functions from get-video-info.js
   getVideoInfo
 };

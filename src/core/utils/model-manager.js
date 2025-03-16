@@ -1,7 +1,7 @@
 /**
  * Utility for managing AI model names and adapters
  */
-const Models = require('./models');
+import Models from './models.js';
 
 class ModelManager {
   // Map of model names to their adapter and model ID
@@ -156,6 +156,14 @@ class ModelManager {
     // DEFAULT_MODEL is in format 'provider/model', so extract just the model part
     return Models.DEFAULT_MODEL.split('/')[1] || 'gemini-1.5-flash';
   }
+
+  /**
+   * Get the default full model ID (provider/model)
+   * @returns {string} - The default full model ID
+   */
+  static getDefaultFullModelId() {
+    return Models.DEFAULT_MODEL || 'google/gemini-1.5-flash';
+  }
 }
 
-module.exports = ModelManager;
+export default ModelManager;

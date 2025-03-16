@@ -1,9 +1,9 @@
 /**
  * Pure functions for fetching and processing YouTube video chapters
  */
-const parseYouTubeChapters = require('get-youtube-chapters');
-const https = require('https');
-const { extractVideoId, extractVideoDescription } = require('./get-video-info');
+import parseYouTubeChapters from 'get-youtube-chapters';
+import https from 'https';
+import { getVideoInfo } from './get-video-info.js';
 
 /**
  * Formats timestamp in HH:MM:SS format
@@ -37,7 +37,7 @@ async function getChapters(videoId, options = {}) {
     const skipFirstChapterOffset = options.skipFirstChapterOffset !== false;
 
     // Fetch video description
-    const videoInfo = await require('./get-video-info').getVideoInfo(videoId);
+    const videoInfo = await getVideoInfo(videoId);
     const description = videoInfo.description;
 
     // Parse chapters from description
@@ -121,7 +121,7 @@ async function getChapters(videoId, options = {}) {
   }
 }
 
-module.exports = {
+export {
   formatTimestamp,
   getChapters
 };

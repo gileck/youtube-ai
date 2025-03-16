@@ -143,7 +143,7 @@ export default async function handler(req, res) {
 
     if (!summaryResult || !summaryResult.text) {
       console.error('Failed to generate summary:', summaryResult);
-      return res.json({ 
+      return res.status(400).json({ 
         success: false,
         error: 'Failed to generate summary', 
         message: 'Failed to generate summary',
@@ -197,9 +197,9 @@ export default async function handler(req, res) {
     res.json(result);
   } catch (error) {
     console.error('Error summarizing transcript:', error);
-    res.json({ 
+    res.status(400).json({ 
       success: false,
-      error: 'Failed to summarize transcript', 
+      error: 'Failed to summarize transcript',
       message: error.message || 'An unexpected error occurred',
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });

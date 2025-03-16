@@ -1,7 +1,7 @@
 /**
  * Pure function for summarizing full transcript text
  */
-const { createSummarizer, formatSummaryResult, createErrorResponse } = require('./utils');
+import { createSummarizer, formatSummaryResult, createErrorResponse } from './utils.js';
 
 /**
  * Summarize a full transcript text using AI
@@ -40,6 +40,6 @@ async function summarizeTranscript(videoId, transcriptText, options = {}) {
   }
 }
 
-module.exports = {
+export {
   summarizeTranscript
 };

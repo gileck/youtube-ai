@@ -1,8 +1,8 @@
 /**
  * Pure functions for combining transcripts with chapters
  */
-const { extractVideoId } = require('./get-transcript');
-const { formatTimestamp } = require('./get-chapters');
+import { extractVideoId } from './get-transcript.js';
+import { formatTimestamp } from './get-chapters.js';
 
 /**
  * Checks if a chapter should be filtered out based on regex patterns
@@ -199,7 +199,7 @@ function getTranscriptWithChapters(videoId, transcriptData, chaptersData, option
   }
 }
 
-module.exports = {
+export {
   shouldFilterChapter,
   combineTranscriptAndChapters,
   convertToFormattedText,

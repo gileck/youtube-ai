@@ -1,7 +1,7 @@
-const OpenAIAdapter = require('./openai-adapter');
-const DeepSeekAdapter = require('./deepseek-adapter');
-const GeminiAdapter = require('./gemini-adapter');
-const ModelManager = require('../utils/model-manager');
+import OpenAIAdapter from './openai-adapter.js';
+import DeepSeekAdapter from './deepseek-adapter.js';
+import GeminiAdapter from './gemini-adapter.js';
+import ModelManager from '../utils/model-manager.js';
 
 /**
  * Factory for creating AI adapters
@@ -63,4 +63,4 @@ class AIAdapterFactory {
   }
 }
 
-module.exports = AIAdapterFactory;
+export default AIAdapterFactory;

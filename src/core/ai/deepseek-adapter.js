@@ -1,4 +1,4 @@
-const BaseAIAdapter = require('./base-adapter');
+import BaseAIAdapter from './base-adapter.js';
 
 /**
  * DeepSeek adapter for AI operations
@@ -121,4 +121,4 @@ class DeepSeekAdapter extends BaseAIAdapter {
   }
 }
 
-module.exports = DeepSeekAdapter;
+export default DeepSeekAdapter;

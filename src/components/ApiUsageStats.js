@@ -6,7 +6,7 @@ import BarChartIcon from '@mui/icons-material/BarChart';
 import MinimizeIcon from '@mui/icons-material/Minimize';
 import OpenInFullIcon from '@mui/icons-material/OpenInFull';
 import ApiUsageDashboard from './ApiUsageDashboard';
-import config from '../config';
+import config from '../config.js';
 
 /**
  * Component to display YouTube API usage statistics

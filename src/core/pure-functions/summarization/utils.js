@@ -1,7 +1,7 @@
 /**
  * Shared utilities for transcript summarization
  */
-const TranscriptSummarizer = require('../../services/transcript-summarizer');
+import TranscriptSummarizer from '../../services/transcript-summarizer.js';
 
 /**
  * Create a summarizer instance with the provided options
@@ -72,7 +72,7 @@ function createErrorResponse(videoId, error) {
   };
 }
 
-module.exports = {
+export {
   createSummarizer,
   formatSummaryResult,
   createErrorResponse

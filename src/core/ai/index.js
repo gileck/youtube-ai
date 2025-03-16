@@ -1,10 +1,10 @@
-const BaseAIAdapter = require('./base-adapter');
-const OpenAIAdapter = require('./openai-adapter');
-const DeepSeekAdapter = require('./deepseek-adapter');
-const GeminiAdapter = require('./gemini-adapter');
-const AIAdapterFactory = require('./adapter-factory');
+import BaseAIAdapter from './base-adapter.js';
+import OpenAIAdapter from './openai-adapter.js';
+import DeepSeekAdapter from './deepseek-adapter.js';
+import GeminiAdapter from './gemini-adapter.js';
+import AIAdapterFactory from './adapter-factory.js';
 
-module.exports = {
+export {
   BaseAIAdapter,
   OpenAIAdapter,
   DeepSeekAdapter,

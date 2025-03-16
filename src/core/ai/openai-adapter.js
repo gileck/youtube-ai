@@ -1,5 +1,5 @@
-const { OpenAI } = require('openai');
-const BaseAIAdapter = require('./base-adapter');
+import { OpenAI } from 'openai';
+import BaseAIAdapter from './base-adapter.js';
 
 /**
  * OpenAI adapter for AI operations
@@ -93,4 +93,4 @@ class OpenAIAdapter extends BaseAIAdapter {
   }
 }
 
-module.exports = OpenAIAdapter;
+export default OpenAIAdapter;

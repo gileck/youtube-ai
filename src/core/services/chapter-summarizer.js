@@ -1,11 +1,11 @@
-const fs = require('fs');
-const path = require('path');
-const { AIAdapterFactory } = require('../ai');
-const TextChunker = require('../utils/text-chunker');
-const Pricing = require('../utils/pricing');
-const Currency = require('../utils/currency');
-const Models = require('../utils/models');
-const ModelManager = require('../utils/model-manager');
+import fs from 'fs';
+import path from 'path';
+import { AIAdapterFactory } from '../ai/index.js';
+import TextChunker from '../utils/text-chunker.js';
+import * as Pricing from '../utils/pricing.js';
+import { convertFromUsd, formatAmount, getExchangeRate } from '../utils/currency.js';
+import * as Models from '../utils/models.js';
+import ModelManager from '../utils/model-manager.js';
 
 /**
  * Service for summarizing transcript chapters using AI
@@ -35,7 +35,7 @@ class ChapterSummarizer {
     try {
       // Try to load prompt from the path specified in config
       const promptFile = this.config.promptFile || 'prompt.txt';
-      
+
       // Try multiple possible locations for the prompt file
       const possiblePaths = [
         // Relative to the current working directory
@@ -45,13 +45,13 @@ class ChapterSummarizer {
         // Absolute path if provided
         promptFile
       ];
-      
+
       for (const filePath of possiblePaths) {
         if (fs.existsSync(filePath)) {
           return fs.readFileSync(filePath, 'utf8');
         }
       }
-      
+
       // If no prompt file is found, return a default prompt
       return `You are an AI assistant that summarizes YouTube video transcripts. 
 Please provide a concise summary of the following transcript.
@@ -96,11 +96,11 @@ Organize your summary in a clear, readable format.`;
 
     // Construct user prompt with only data, no instructions
     let userPrompt = 'YOUTUBE VIDEO CHAPTER TRANSCRIPT\n\n';
-    
+
     if (this.config.includeVideoMetadata && videoMetadata && videoMetadata.title) {
       userPrompt += `VIDEO TITLE: ${videoMetadata.title}\n\n`;
     }
-    
+
     userPrompt += `CHAPTER: ${chapter.title}\n\nCONTENT:\n${chapter.content}`;
 
     // Generate summary
@@ -130,25 +130,25 @@ Organize your summary in a clear, readable format.`;
 
     // Construct user prompt with only data, no instructions
     let userPrompt = 'YOUTUBE VIDEO CHAPTER SUMMARIES\n\n';
-    
+
     if (this.config.includeVideoMetadata && videoMetadata) {
       if (videoMetadata.title) {
         userPrompt += `VIDEO TITLE: ${videoMetadata.title}\n\n`;
       }
-      
+
       if (videoMetadata.description) {
-        const shortDescription = videoMetadata.description.length > 500 
-          ? videoMetadata.description.substring(0, 500) + '...' 
+        const shortDescription = videoMetadata.description.length > 500
+          ? videoMetadata.description.substring(0, 500) + '...'
           : videoMetadata.description;
         userPrompt += `VIDEO DESCRIPTION: ${shortDescription}\n\n`;
       }
     }
-    
+
     userPrompt += `CHAPTER SUMMARIES:\n\n${formattedChapters}`;
 
     // Generate combined summary
     const result = await adapter.generateCompletion(systemPrompt, userPrompt);
-    
+
     return {
       text: result.text,
       usage: result.usage
@@ -175,15 +175,15 @@ Organize your summary in a clear, readable format.`;
     for (let i = 0; i < chapters.length; i += maxConcurrent) {
       const batch = chapters.slice(i, i + maxConcurrent);
       console.log(`Processing batch ${Math.floor(i / maxConcurrent) + 1}/${Math.ceil(chapters.length / maxConcurrent)} (${batch.length} chapters)`);
-      
+
       // Process batch in parallel
       const batchResults = await Promise.all(
         batch.map(chapter => this.generateChapterSummary(adapter, chapter, videoMetadata))
       );
-      
+
       // Add results to chapter summaries
       chapterSummaries.push(...batchResults);
-      
+
       // Accumulate token usage
       for (const result of batchResults) {
         usage.promptTokens += result.usage.promptTokens;
@@ -205,7 +205,7 @@ Organize your summary in a clear, readable format.`;
    */
   formatCost(cost) {
     const currency = this.config.currency || 'USD';
-    
+
     if (currency === 'USD') {
       return {
         ...cost,
@@ -217,16 +217,16 @@ Organize your summary in a clear, readable format.`;
       };
     } else {
       // Convert USD to the specified currency
-      const exchangeRate = Currency.getExchangeRate('USD', currency);
+      const exchangeRate = getExchangeRate('USD', currency);
       const inputCostConverted = cost.inputCost * exchangeRate;
       const outputCostConverted = cost.outputCost * exchangeRate;
       const totalCostConverted = cost.totalCost * exchangeRate;
-      
+
       return {
         ...cost,
-        inputCostFormatted: `${Currency.formatAmount(inputCostConverted, currency)}`,
-        outputCostFormatted: `${Currency.formatAmount(outputCostConverted, currency)}`,
-        totalCostFormatted: `${Currency.formatAmount(totalCostConverted, currency)}`,
+        inputCostFormatted: `${formatAmount(inputCostConverted, currency)}`,
+        outputCostFormatted: `${formatAmount(outputCostConverted, currency)}`,
+        totalCostFormatted: `${formatAmount(totalCostConverted, currency)}`,
         currency,
         exchangeRate
       };
@@ -243,26 +243,26 @@ Organize your summary in a clear, readable format.`;
   async estimateCost(chapterContent, options = {}, videoMetadata = null) {
     // Merge options with defaults
     const config = { ...this.config, ...options };
-    
+
     // Convert chapters to array format
     const chapters = Object.entries(chapterContent).map(([title, content]) => ({
       title,
       content
     }));
-    
+
     // Calculate total input tokens
     const totalInputTokens = chapters.reduce((total, chapter) => {
       // Tokens for chapter content
       const contentTokens = TextChunker.estimateTokenCount(chapter.content);
-      
+
       // Tokens for prompt template
       const promptTemplateTokens = TextChunker.estimateTokenCount(
         `Here is a chapter from a transcript to summarize:\n\nChapter: ${chapter.title}\n\nContent:\n\nPlease provide a concise summary of this chapter.`
       );
-      
+
       return total + contentTokens + promptTemplateTokens;
     }, 0);
-    
+
     // Add tokens for video metadata if included
     let metadataTokens = 0;
     if (config.includeVideoMetadata && videoMetadata) {
@@ -270,56 +270,56 @@ Organize your summary in a clear, readable format.`;
         metadataTokens += TextChunker.estimateTokenCount(videoMetadata.title);
       }
       if (videoMetadata.description) {
-        const shortDescription = videoMetadata.description.length > 500 
-          ? videoMetadata.description.substring(0, 500) + '...' 
+        const shortDescription = videoMetadata.description.length > 500
+          ? videoMetadata.description.substring(0, 500) + '...'
           : videoMetadata.description;
         metadataTokens += TextChunker.estimateTokenCount(shortDescription);
       }
     }
-    
+
     // Estimate output tokens for chapter summaries
     const estimatedChapterOutputTokens = Math.min(
       2000 * chapters.length,
       Math.ceil((totalInputTokens + metadataTokens) * 0.15)
     );
-    
+
     // Estimate tokens for combining summaries
     const combinePromptTokens = TextChunker.estimateTokenCount(
       `I have summaries of individual chapters from a transcript that need to be combined into a cohesive final summary. Please create a well-structured summary that captures all the key points without redundancy.\n\nHere are the chapter summaries:`
     );
-    
+
     // Estimate tokens for the final combined summary
     const estimatedFinalOutputTokens = Math.min(2000, Math.ceil(estimatedChapterOutputTokens * 0.5));
-    
+
     // Total estimated tokens
     const totalEstimatedInputTokens = totalInputTokens + metadataTokens + combinePromptTokens + estimatedChapterOutputTokens;
     const totalEstimatedOutputTokens = estimatedChapterOutputTokens + estimatedFinalOutputTokens;
-    
+
     // Calculate cost
     const costEstimate = Pricing.calculateCost(
       config.model,
       totalEstimatedInputTokens,
       totalEstimatedOutputTokens
     );
-    
+
     // Format cost
     const formattedCost = this.formatCost(costEstimate);
-    
+
     // Find the cheapest model
     const cheapestModel = Pricing.getCheapestModel(
       totalEstimatedInputTokens,
       totalEstimatedOutputTokens
     );
-    
+
     // Format cost for cheapest model
     const formattedCheapestCost = this.formatCost(cheapestModel);
-    
+
     // Calculate number of API calls
     const numberOfAPICalls = chapters.length + 1; // One call per chapter + one for combining
-    
+
     // Calculate number of batches for parallel processing
     const numberOfBatches = Math.ceil(chapters.length / config.maxConcurrentRequests);
-    
+
     return {
       model: costEstimate.model,
       inputTokens: totalEstimatedInputTokens,
@@ -379,8 +379,8 @@ Organize your summary in a clear, readable format.`;
         metadataTokens += TextChunker.estimateTokenCount(videoMetadata.title);
       }
       if (videoMetadata.description) {
-        const shortDescription = videoMetadata.description.length > 500 
-          ? videoMetadata.description.substring(0, 500) + '...' 
+        const shortDescription = videoMetadata.description.length > 500
+          ? videoMetadata.description.substring(0, 500) + '...'
           : videoMetadata.description;
         metadataTokens += TextChunker.estimateTokenCount(shortDescription);
       }
@@ -416,22 +416,22 @@ Organize your summary in a clear, readable format.`;
 
     if (config.parallelProcessing && chapters.length > 0) {
       console.log(`Processing ${chapters.length} chapters in parallel (max ${config.maxConcurrentRequests} concurrent requests)`);
-      
+
       // Process chapters in batches
       const maxConcurrent = config.maxConcurrentRequests;
-      
+
       for (let i = 0; i < chapters.length; i += maxConcurrent) {
         const batch = chapters.slice(i, i + maxConcurrent);
         console.log(`Processing batch ${Math.floor(i / maxConcurrent) + 1}/${Math.ceil(chapters.length / maxConcurrent)} (${batch.length} chapters)`);
-        
+
         // Process batch in parallel
         const batchResults = await Promise.all(
           batch.map(chapter => this.generateChapterSummary(adapter, chapter, videoMetadata))
         );
-        
+
         // Add results to chapter summaries
         chapterSummaries.push(...batchResults);
-        
+
         // Accumulate token usage
         for (const result of batchResults) {
           usage.promptTokens += result.usage.promptTokens;
@@ -445,7 +445,7 @@ Organize your summary in a clear, readable format.`;
       for (const chapter of chapters) {
         const chapterResult = await this.generateChapterSummary(adapter, chapter, videoMetadata);
         chapterSummaries.push(chapterResult);
-        
+
         // Accumulate token usage
         usage.promptTokens += chapterResult.usage.promptTokens;
         usage.completionTokens += chapterResult.usage.completionTokens;
@@ -459,7 +459,7 @@ Organize your summary in a clear, readable format.`;
       console.log('Combining chapter summaries into final summary');
       const combinedSummary = await this.combineChapterSummaries(adapter, chapterSummaries, videoMetadata);
       summary = combinedSummary.text;
-      
+
       // Add token usage for the final combination step
       usage.promptTokens += combinedSummary.usage.promptTokens;
       usage.completionTokens += combinedSummary.usage.completionTokens;
@@ -499,4 +499,4 @@ Organize your summary in a clear, readable format.`;
   }
 }
 
-module.exports = ChapterSummarizer;
+export default ChapterSummarizer;

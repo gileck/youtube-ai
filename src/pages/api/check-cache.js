@@ -47,7 +47,7 @@ export default function handler(req, res) {
     });
   } catch (error) {
     console.error('Error checking cache:', error);
-    res.json({ 
+    res.status(400).json({ 
       success: false,
       error: 'Failed to check cache',
       message: error.message || 'An unexpected error occurred',

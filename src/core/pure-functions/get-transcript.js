@@ -1,7 +1,7 @@
 /**
  * Pure functions for fetching and processing YouTube video transcripts
  */
-const { YoutubeTranscript } = require('youtube-transcript');
+import { YoutubeTranscript } from 'youtube-transcript';
 
 /**
  * Extracts the video ID from a YouTube URL
@@ -71,7 +71,7 @@ async function getTranscript(videoId, options = {}) {
   }
 }
 
-module.exports = {
+export {
   extractVideoId,
   getTranscript
 };

@@ -42,4 +42,4 @@ class BaseAIAdapter {
   }
 }
 
-module.exports = BaseAIAdapter;
+export default BaseAIAdapter;

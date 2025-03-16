@@ -1,5 +1,5 @@
 import axios from 'axios';
-import config from '../../config';
+import config from '../../config.js';
 
 // Create an axios instance
 const apiClient = axios.create({
@@ -145,6 +145,30 @@ export const apiService = {
       return response.data;
     } catch (error) {
       console.error('Error summarizing video:', error);
+      throw error;
+    }
+  },
+  
+  // Process AI action on video
+  processAiAction: async (youtubeUrl, actionId, customParams = {}) => {
+    try {
+      const response = await apiClient.post('/process-action', {
+        youtubeUrl,
+        actionId,
+        customParams
+      });
+      
+      // Check if response contains cache info
+      const fromCache = response.data?.fromCache || false;
+      // AI actions might use multiple API calls, so we use a higher cost estimate
+      const cost = fromCache ? 0 : 100; // Assuming AI actions cost 100 units
+      
+      // Trigger cost event
+      triggerApiCostEvent(`AI Action: ${actionId}`, cost, fromCache);
+      
+      return response.data;
+    } catch (error) {
+      console.error(`Error processing AI action ${actionId}:`, error);
       throw error;
     }
   },

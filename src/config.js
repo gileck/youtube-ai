@@ -2,8 +2,8 @@
  * Centralized configuration for the YouTube to AI application
  */
 
-const Models = require('./core/utils/models');
-const ModelManager = require('./core/utils/model-manager');
+import Models from './core/utils/models.js';
+import ModelManager from './core/utils/model-manager.js';
 
 // Default configuration
 const config = {
@@ -65,4 +65,4 @@ const config = {
   }
 };
 
-module.exports = config;
+export default config;

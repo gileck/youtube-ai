@@ -107,13 +107,13 @@ class TextChunker {
 
       // Find all chapter markers
       const chapterMarkers = [];
-      
+
       try {
         const regex = new RegExp(chapterPattern);
-        
+
         // Use String.matchAll instead of regex.exec in a loop to reduce memory usage
         const matches = [...text.matchAll(regex)];
-        
+
         for (const match of matches) {
           if (match && match.index !== undefined) {
             chapterMarkers.push({
@@ -150,15 +150,15 @@ class TextChunker {
       for (let i = 0; i < chapterMarkers.length; i++) {
         const startIndex = chapterMarkers[i].index;
         const endIndex = (i < chapterMarkers.length - 1) ? chapterMarkers[i + 1].index : text.length;
-        
+
         // Validate indices
-        if (startIndex === undefined || endIndex === undefined || 
-            startIndex < 0 || endIndex > text.length || 
-            startIndex >= endIndex) {
+        if (startIndex === undefined || endIndex === undefined ||
+          startIndex < 0 || endIndex > text.length ||
+          startIndex >= endIndex) {
           console.warn(`Invalid chapter boundaries: start=${startIndex}, end=${endIndex}, skipping chapter`);
           continue;
         }
-        
+
         const chapterContent = text.substring(startIndex, endIndex);
 
         // Check if this chapter is too large
@@ -222,4 +222,5 @@ class TextChunker {
   }
 }
 
-module.exports = TextChunker;
+export default TextChunker;
+

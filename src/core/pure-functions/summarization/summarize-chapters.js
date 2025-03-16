@@ -1,9 +1,9 @@
 /**
  * Pure functions for summarizing transcript chapters
  */
-const ChapterSummarizer = require('../../services/chapter-summarizer');
-const { formatSummaryResult, createErrorResponse } = require('./utils');
-const ModelManager = require('../../utils/model-manager');
+import ChapterSummarizer from '../../services/chapter-summarizer.js';
+import { formatSummaryResult, createErrorResponse } from './utils.js';
+import ModelManager from '../../utils/model-manager.js';
 
 /**
  * Summarize transcript chapters using AI
@@ -54,6 +54,6 @@ async function summarizeChapters(videoId, chapterContent, options = {}) {
   }
 }
 
-module.exports = {
+export {
   summarizeChapters
 };

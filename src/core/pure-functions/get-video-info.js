@@ -3,7 +3,7 @@
  * This module handles retrieving video metadata such as title, description,
  * channel name, publication date, etc.
  */
-const https = require('https');
+import https from 'https';
 
 /**
  * Extracts the video ID from a YouTube URL
@@ -217,7 +217,7 @@ function extractChannelId(html) {
     }
     
     // Alternative method
-    const altChannelIdMatch = html.match(/\/channel\/([\w-]+)/);
+    const altChannelIdMatch = html.match(/\/channel\/(UC[a-zA-Z0-9_-]{22})/);
     if (altChannelIdMatch && altChannelIdMatch[1]) {
       return altChannelIdMatch[1];
     }
@@ -237,13 +237,13 @@ function extractChannelId(html) {
 function extractPublishDate(html) {
   try {
     // Try to extract the publish date from the HTML
-    const dateMatch = html.match(/"publishDate":"(.*?)"/);
+    const dateMatch = html.match(/"publishDate":"([0-9]{4}-[0-9]{2}-[0-9]{2})"/);
     if (dateMatch && dateMatch[1]) {
-      return dateMatch[1]; // Format: YYYY-MM-DD
+      return dateMatch[1];
     }
     
     // Alternative method
-    const altDateMatch = html.match(/<meta itemprop="datePublished" content="(.*?)">/);
+    const altDateMatch = html.match(/<meta itemprop="datePublished" content="([0-9]{4}-[0-9]{2}-[0-9]{2})"/);
     if (altDateMatch && altDateMatch[1]) {
       return altDateMatch[1];
     }
@@ -263,13 +263,13 @@ function extractPublishDate(html) {
 function extractViewCount(html) {
   try {
     // Try to extract the view count from the HTML
-    const viewCountMatch = html.match(/"viewCount":"(.*?)"/);
+    const viewCountMatch = html.match(/"viewCount":"([0-9]+)"/);
     if (viewCountMatch && viewCountMatch[1]) {
       return parseInt(viewCountMatch[1], 10);
     }
     
     // Alternative method
-    const altViewCountMatch = html.match(/<meta itemprop="interactionCount" content="(.*?)">/);
+    const altViewCountMatch = html.match(/<meta itemprop="interactionCount" content="([0-9]+)"/);
     if (altViewCountMatch && altViewCountMatch[1]) {
       return parseInt(altViewCountMatch[1], 10);
     }
@@ -289,9 +289,10 @@ function extractViewCount(html) {
 function extractDuration(html) {
   try {
     // Try to extract the duration from the HTML
-    const durationMatch = html.match(/"lengthSeconds":"(.*?)"/);
+    const durationMatch = html.match(/"lengthSeconds":"([0-9]+)"/);
     if (durationMatch && durationMatch[1]) {
       const seconds = parseInt(durationMatch[1], 10);
+      
       // Convert to ISO 8601 duration format
       const hours = Math.floor(seconds / 3600);
       const minutes = Math.floor((seconds % 3600) / 60);
@@ -300,13 +301,13 @@ function extractDuration(html) {
       let isoDuration = 'PT';
       if (hours > 0) isoDuration += `${hours}H`;
       if (minutes > 0) isoDuration += `${minutes}M`;
-      if (remainingSeconds > 0) isoDuration += `${remainingSeconds}S`;
+      if (remainingSeconds > 0 || (hours === 0 && minutes === 0)) isoDuration += `${remainingSeconds}S`;
       
       return isoDuration;
     }
     
     // Alternative method
-    const altDurationMatch = html.match(/<meta itemprop="duration" content="(.*?)">/);
+    const altDurationMatch = html.match(/<meta itemprop="duration" content="(PT[0-9HMS]+)"/);
     if (altDurationMatch && altDurationMatch[1]) {
       return altDurationMatch[1];
     }
@@ -325,11 +326,11 @@ function extractDuration(html) {
  */
 function generateThumbnailUrls(videoId) {
   return {
-    default: `https://img.youtube.com/vi/${videoId}/default.jpg`,
-    medium: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-    high: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-    standard: `https://img.youtube.com/vi/${videoId}/sddefault.jpg`,
-    maxres: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`
+    default: `https://i.ytimg.com/vi/${videoId}/default.jpg`,
+    medium: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+    high: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+    standard: `https://i.ytimg.com/vi/${videoId}/sddefault.jpg`,
+    maxres: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
   };
 }
 
@@ -339,22 +340,27 @@ function generateThumbnailUrls(videoId) {
  * @returns {string} - The decoded text
  */
 function decodeHtmlEntities(text) {
-  return text
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\\u0026amp;/g, '&')
-    .replace(/\\u0026lt;/g, '<')
-    .replace(/\\u0026gt;/g, '>')
-    .replace(/\\u0026quot;/g, '"')
-    .replace(/\\u0026#39;/g, "'")
-    .replace(/\\"/g, '"')
-    .replace(/\\\\/g, '\\');
+  if (!text) return '';
+  
+  // Create a temporary element to decode HTML entities
+  if (typeof document !== 'undefined') {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  } else {
+    // Server-side fallback
+    return text
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&#x27;/g, "'")
+      .replace(/&#x2F;/g, '/');
+  }
 }
 
-module.exports = {
+export {
   extractVideoId,
   getVideoInfo,
   fetchVideoPage,

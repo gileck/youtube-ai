@@ -1,10 +1,10 @@
-const fs = require('fs');
-const path = require('path');
-const { AIAdapterFactory } = require('../ai');
-const TextChunker = require('../utils/text-chunker');
-const Pricing = require('../utils/pricing');
-const Currency = require('../utils/currency');
-const Models = require('../utils/models');
+import fs from 'fs';
+import path from 'path';
+import { AIAdapterFactory } from '../ai/index.js';
+import TextChunker from '../utils/text-chunker.js';
+import * as Pricing from '../utils/pricing.js';
+import { convertFromUsd, formatAmount, getExchangeRate } from '../utils/currency.js';
+import * as Models from '../utils/models.js';
 
 /**
  * Service for summarizing transcripts using AI
@@ -231,15 +231,15 @@ class TranscriptSummarizer {
 
     // Apply currency conversion if needed
     if (this.config.currency !== 'USD') {
-      const converted = Currency.convertFromUsd(cost.inputCost, this.config.currency);
-      const outputCostConverted = Currency.convertFromUsd(cost.outputCost, this.config.currency);
-      const totalCostConverted = Currency.convertFromUsd(cost.totalCost, this.config.currency);
+      const converted = convertFromUsd(cost.inputCost, this.config.currency);
+      const outputCostConverted = convertFromUsd(cost.outputCost, this.config.currency);
+      const totalCostConverted = convertFromUsd(cost.totalCost, this.config.currency);
 
-      formattedCost.inputCostFormatted = converted.formattedConverted;
-      formattedCost.outputCostFormatted = outputCostConverted.formattedConverted;
-      formattedCost.totalCostFormatted = totalCostConverted.formattedConverted;
+      formattedCost.inputCostFormatted = converted.formatted;
+      formattedCost.outputCostFormatted = outputCostConverted.formatted;
+      formattedCost.totalCostFormatted = totalCostConverted.formatted;
       formattedCost.currency = this.config.currency;
-      formattedCost.exchangeRate = converted.rate;
+      formattedCost.exchangeRate = converted.exchangeRate;
     } else {
       // Default to USD
       formattedCost.inputCostFormatted = `$${cost.inputCost.toFixed(4)}`;
@@ -658,4 +658,4 @@ class TranscriptSummarizer {
   }
 }
 
-module.exports = TranscriptSummarizer;
+export default TranscriptSummarizer;

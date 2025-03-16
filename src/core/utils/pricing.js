@@ -2,7 +2,7 @@
  * Pricing utility for AI models
  * Prices are in USD per 1000 tokens
  */
-const ModelManager = require('./model-manager');
+import ModelManager from './model-manager.js';
 
 // Pricing information for AI models (as of March 2025)
 const MODEL_PRICING = {
@@ -88,6 +88,12 @@ const MODEL_PRICING = {
  * @returns {Object|null} - The pricing information or null if not found
  */
 function getModelPricing(modelName) {
+  // Handle null, undefined, or non-string model names
+  if (!modelName || typeof modelName !== 'string') {
+    console.warn(`Invalid model name: ${modelName}, using default model`);
+    return MODEL_PRICING[ModelManager.getDefaultFullModelId()] || null;
+  }
+  
   // If modelName is already a full model ID (provider/model), use it directly
   if (modelName.includes('/')) {
     return MODEL_PRICING[modelName] || null;
@@ -221,7 +227,7 @@ async function fetchLatestPricing() {
   return MODEL_PRICING;
 }
 
-module.exports = {
+export {
   MODEL_PRICING,
   getModelPricing,
   calculateCost,

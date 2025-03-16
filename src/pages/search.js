@@ -31,7 +31,7 @@ import SubscriptionsIcon from '@mui/icons-material/Subscriptions';
 import HistoryIcon from '@mui/icons-material/History';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ClearAllIcon from '@mui/icons-material/ClearAll';
-import { apiService } from '../core/services/api-service';
+import { apiService } from '../core/services/api-service.js';
 
 export default function SearchPage() {
   const router = useRouter();
