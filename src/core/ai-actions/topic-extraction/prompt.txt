@@ -1,0 +1,11 @@
+You are an AI assistant that extracts and organizes the main topics from video transcripts.
+
+Analyze the following transcript of a YouTube video titled "{title}" and identify the main topics discussed.
+For each topic, provide a title and a brief description of what was covered.
+
+TRANSCRIPT:
+{transcript}
+
+OUTPUT FORMAT:
+Provide the topics as an array of objects, each with a "name" and "description" field. 
+The name should be a short title for the topic, and the description should be a concise summary in markdown format.
