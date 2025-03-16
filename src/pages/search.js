@@ -37,41 +37,24 @@ import { apiService } from '../core/services/api-service.js';
 // List of popular YouTube channels with their IDs, names, and thumbnails
 const popularChannels = [
   {
-    id: 'UCX6OQ3DkcsbYNE6H8uQQuVA',
-    name: 'MrBeast',
-    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZTUVa5AeFd3m5-4fdY2hEaKemT_Aj0l2mzQpRGJDQ=s176-c-k-c0x00ffffff-no-rj',
-    subscribers: '200M+'
+    id: '@lexfridman',
+    name: "Lex Fridman",
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIdro_ljfMy9kUR1PH9VRf-XsTsPqFMgORC_zodOQVEAm4hx36lC=s160-c-k-c0x00ffffff-no-rj',
+    subscribers: '4.5M+'
   },
   {
-    id: 'UCsBjURrPoezykLs9EqgamOA',
-    name: 'Fireship',
-    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZRVbJjVWWn3xXhj8XUBpCYZKgeFAGNpwYxj7W4EEw=s176-c-k-c0x00ffffff-no-rj',
+    id: '@PeterAttiaMD',
+    name: 'Peter Attia',
+    thumbnail: 'https://yt3.googleusercontent.com/zT1Gb5jp3qkDrtFTNUL2fWJC1I5OddFUGvJhk_frSuSQGVm6yr_ikpNO-4pXZERDHwqgX_0tLw=s160-c-k-c0x00ffffff-no-rj',
     subscribers: '2.5M+'
   },
   {
-    id: 'UCY1kMZp36IQSyNx_9h4mpCg',
-    name: 'Mark Rober',
-    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZSJshIUBwO9gBbS9fTjb0GQ_0-OPr2_nmYKbfZV=s176-c-k-c0x00ffffff-no-rj',
-    subscribers: '25M+'
-  },
-  {
-    id: 'UCsvqVGtbbyHaMoevxPAq9Fg',
-    name: 'Marques Brownlee',
-    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZSNuBRkEk-8pVEsQYELZC0bRc7Ys3ySiwkCjAR7=s176-c-k-c0x00ffffff-no-rj',
-    subscribers: '18M+'
-  },
-  {
-    id: 'UC2UXDak6o7rBm23k3Vv5dww',
-    name: 'Veritasium',
-    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZTUVa5AeFd3m5-4fdY2hEaKemT_Aj0l2mzQpRGJDQ=s176-c-k-c0x00ffffff-no-rj',
-    subscribers: '14M+'
-  },
-  {
-    id: 'UCBJycsmduvYEL83R_U4JriQ',
-    name: 'MKBHD',
-    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZSNuBRkEk-8pVEsQYELZC0bRc7Ys3ySiwkCjAR7=s176-c-k-c0x00ffffff-no-rj',
-    subscribers: '18M+'
+    id: '@hubermanlab',
+    name: 'Andrew Huberman',
+    thumbnail: 'https://yt3.googleusercontent.com/Y8lhyl8aHY42phxwoAwUqwLGDp-z8nmtj3Z7_JB-Oh4yIZ1OFYb-MlJRuz_oygqsYQU-VgGqiOM=s160-c-k-c0x00ffffff-no-rj',
+    subscribers: '4.5M+'
   }
+  
 ];
 
 export default function SearchPage() {

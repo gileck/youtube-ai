@@ -32,6 +32,42 @@ export default async function handler(req, res) {
     // YouTube API quota cost for channel info is 1 unit
     const channelInfoQuotaCost = 1;
     
+    // If channelId starts with @, it's a handle and needs to be resolved to a channel ID first
+    let actualChannelId = channelId;
+    let additionalCost = 0;
+    
+    if (channelId.startsWith('@')) {
+      try {
+        // Search for the channel by handle
+        const searchResponse = await axios.get(`${req.headers.host.includes('localhost') ? 'http' : 'https'}://${req.headers.host}/api/channel/search`, {
+          params: {
+            q: channelId,
+            type: 'handle'
+          }
+        });
+        
+        if (searchResponse.data.items && searchResponse.data.items.length > 0) {
+          actualChannelId = searchResponse.data.items[0].channelId;
+          additionalCost = searchResponse.data.apiCost || 0;
+        } else {
+          return res.status(404).json({ 
+            error: 'Channel not found',
+            message: `No channel found for handle: ${channelId}`,
+            fromCache: false,
+            apiCost: additionalCost
+          });
+        }
+      } catch (error) {
+        console.error('Error resolving channel handle:', error);
+        return res.status(404).json({ 
+          error: 'Failed to resolve channel handle',
+          message: error.response?.data?.error || error.message,
+          fromCache: false,
+          apiCost: 0
+        });
+      }
+    }
+    
     // Fetch channel information from YouTube API with caching
     try {
       const { response, fromCache } = await apiCache.cachedRequest(
@@ -39,14 +75,14 @@ export default async function handler(req, res) {
         () => axios.get('https://www.googleapis.com/youtube/v3/channels', {
           params: {
             key: YOUTUBE_API_KEY,
-            id: channelId,
+            id: actualChannelId,
             part: 'snippet,statistics,brandingSettings'
           }
         }),
         // Endpoint for cache key
         'youtube/channels/info',
         // Parameters for cache key
-        { channelId },
+        { channelId: actualChannelId },
         // Cache options
         { 
           ttl: CACHE_TTL, 
@@ -60,7 +96,7 @@ export default async function handler(req, res) {
         return res.status(404).json({ 
           error: 'Channel not found',
           fromCache,
-          apiCost: fromCache ? 0 : channelInfoQuotaCost
+          apiCost: fromCache ? 0 : channelInfoQuotaCost + additionalCost
         });
       }
 
@@ -75,7 +111,8 @@ export default async function handler(req, res) {
         publishedAt: channel.snippet.publishedAt,
         thumbnails: channel.snippet.thumbnails,
         statistics: channel.statistics,
-        bannerUrl: channel.brandingSettings?.image?.bannerExternalUrl || null
+        bannerUrl: channel.brandingSettings?.image?.bannerExternalUrl || null,
+        originalId: channelId // Include the original ID/handle that was requested
       };
       
       // Return formatted channel info with consistent response format
@@ -83,7 +120,7 @@ export default async function handler(req, res) {
         items: [channelInfo],
         totalResults: 1,
         fromCache, // Include cache status
-        apiCost: fromCache ? 0 : channelInfoQuotaCost // No cost for cached responses
+        apiCost: fromCache ? 0 : channelInfoQuotaCost + additionalCost // No cost for cached responses
       });
     } catch (error) {
       // If we hit quota limit, return appropriate error

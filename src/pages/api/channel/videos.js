@@ -30,6 +30,41 @@ export default async function handler(req, res) {
     // Track total API cost for this request
     let totalApiCost = 0;
 
+    // If channelId starts with @, it's a handle and needs to be resolved to a channel ID first
+    let actualChannelId = channelId;
+    
+    if (channelId.startsWith('@')) {
+      try {
+        // Search for the channel by handle
+        const searchResponse = await axios.get(`${req.headers.host.includes('localhost') ? 'http' : 'https'}://${req.headers.host}/api/channel/search`, {
+          params: {
+            q: channelId,
+            type: 'handle'
+          }
+        });
+        
+        if (searchResponse.data.items && searchResponse.data.items.length > 0) {
+          actualChannelId = searchResponse.data.items[0].channelId;
+          totalApiCost += searchResponse.data.apiCost || 0;
+        } else {
+          return res.status(404).json({ 
+            error: 'Channel not found',
+            message: `No channel found for handle: ${channelId}`,
+            fromCache: false,
+            apiCost: totalApiCost
+          });
+        }
+      } catch (error) {
+        console.error('Error resolving channel handle:', error);
+        return res.status(404).json({ 
+          error: 'Failed to resolve channel handle',
+          message: error.response?.data?.error || error.message,
+          fromCache: false,
+          apiCost: 0
+        });
+      }
+    }
+
     try {
       // Fetch channel videos from YouTube API with caching
       // According to YouTube Data API v3 Quota Calculator:
@@ -43,7 +78,7 @@ export default async function handler(req, res) {
         () => axios.get('https://www.googleapis.com/youtube/v3/search', {
           params: {
             key: YOUTUBE_API_KEY,
-            channelId,
+            channelId: actualChannelId,
             part: 'snippet',
             maxResults: 10,
             order,
@@ -55,7 +90,7 @@ export default async function handler(req, res) {
         // Endpoint for cache key
         'youtube/search/videos',
         // Parameters for cache key
-        { channelId, order, pageToken: pageToken || 'null' },
+        { channelId: actualChannelId, order, pageToken: pageToken || 'null' },
         // Cache options
         { 
           ttl: CACHE_TTL, 
@@ -65,7 +100,7 @@ export default async function handler(req, res) {
         }
       );
       
-      totalApiCost += searchQuotaCost;
+      totalApiCost += fromCache ? 0 : searchQuotaCost;
 
       if (!response.data.items || response.data.items.length === 0) {
         return res.json({
@@ -74,7 +109,8 @@ export default async function handler(req, res) {
           filteredResults: 0,
           nextPageToken: null,
           fromCache,
-          apiCost: fromCache ? 0 : totalApiCost
+          apiCost: fromCache ? 0 : totalApiCost,
+          originalChannelId: channelId // Include the original ID/handle that was requested
         });
       }
 
@@ -115,7 +151,7 @@ export default async function handler(req, res) {
         }
       );
       
-      totalApiCost += videoDetailsQuotaCost;
+      totalApiCost += videoDetailsFromCache ? 0 : videoDetailsQuotaCost;
 
       if (videoDetailsResponse.data.items && videoDetailsResponse.data.items.length > 0) {
         // Map search results to video details
@@ -180,7 +216,8 @@ export default async function handler(req, res) {
         filteredResults: filteredCount,
         nextPageToken: response.data.nextPageToken || null,
         fromCache: fromCache && videoDetailsFromCache,
-        apiCost: (fromCache && videoDetailsFromCache) ? 0 : totalApiCost
+        apiCost: (fromCache && videoDetailsFromCache) ? 0 : totalApiCost,
+        originalChannelId: channelId // Include the original ID/handle that was requested
       });
     } catch (error) {
       console.error('Error fetching channel videos:', error);
@@ -209,9 +246,12 @@ export default async function handler(req, res) {
  */
 function parseDuration(duration) {
   const match = duration.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+  if (!match) return 0;
+  
   const hours = parseInt(match[1] || 0);
   const minutes = parseInt(match[2] || 0);
   const seconds = parseInt(match[3] || 0);
+  
   return hours * 3600 + minutes * 60 + seconds;
 }
 
@@ -241,25 +281,33 @@ function formatDuration(seconds) {
  */
 function isYouTubeShort(videoItem, videoDetails, durationInSeconds) {
   // YouTube Shorts are typically vertical videos with duration <= 60 seconds
-  // They also often have "#shorts" in the title or description
+  const MAX_SHORT_DURATION = 60; // 60 seconds
   
-  // Check duration (Shorts are usually <= 60 seconds)
-  if (durationInSeconds <= 60) {
+  // Check duration first (most reliable indicator)
+  if (durationInSeconds > MAX_SHORT_DURATION) {
+    return false;
+  }
+  
+  // Check title for "#shorts" hashtag
+  if (videoItem.snippet.title.toLowerCase().includes('#short')) {
     return true;
   }
   
-  // Check for #shorts hashtag in title or description
-  const title = videoItem.snippet.title.toLowerCase();
-  const description = videoItem.snippet.description.toLowerCase();
-  
-  if (
-    title.includes('#short') || 
-    description.includes('#short') ||
-    title.includes('shorts') ||
-    description.includes('shorts')
-  ) {
+  // Check description for "#shorts" hashtag
+  if (videoItem.snippet.description.toLowerCase().includes('#short')) {
     return true;
   }
   
+  // Check if the video has a "shorts" URL
+  // This is a bit harder to detect from the API response, but we can check for common patterns
+  if (videoDetails.snippet && videoDetails.snippet.tags) {
+    for (const tag of videoDetails.snippet.tags) {
+      if (tag.toLowerCase().includes('short')) {
+        return true;
+      }
+    }
+  }
+  
+  // If we can't definitively say it's a Short, assume it's not
   return false;
 }
