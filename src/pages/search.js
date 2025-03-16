@@ -23,7 +23,8 @@ import {
   IconButton,
   Tooltip,
   Divider,
-  Paper
+  Paper,
+  Avatar
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import YouTubeIcon from '@mui/icons-material/YouTube';
@@ -32,6 +33,46 @@ import HistoryIcon from '@mui/icons-material/History';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ClearAllIcon from '@mui/icons-material/ClearAll';
 import { apiService } from '../core/services/api-service.js';
+
+// List of popular YouTube channels with their IDs, names, and thumbnails
+const popularChannels = [
+  {
+    id: 'UCX6OQ3DkcsbYNE6H8uQQuVA',
+    name: 'MrBeast',
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZTUVa5AeFd3m5-4fdY2hEaKemT_Aj0l2mzQpRGJDQ=s176-c-k-c0x00ffffff-no-rj',
+    subscribers: '200M+'
+  },
+  {
+    id: 'UCsBjURrPoezykLs9EqgamOA',
+    name: 'Fireship',
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZRVbJjVWWn3xXhj8XUBpCYZKgeFAGNpwYxj7W4EEw=s176-c-k-c0x00ffffff-no-rj',
+    subscribers: '2.5M+'
+  },
+  {
+    id: 'UCY1kMZp36IQSyNx_9h4mpCg',
+    name: 'Mark Rober',
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZSJshIUBwO9gBbS9fTjb0GQ_0-OPr2_nmYKbfZV=s176-c-k-c0x00ffffff-no-rj',
+    subscribers: '25M+'
+  },
+  {
+    id: 'UCsvqVGtbbyHaMoevxPAq9Fg',
+    name: 'Marques Brownlee',
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZSNuBRkEk-8pVEsQYELZC0bRc7Ys3ySiwkCjAR7=s176-c-k-c0x00ffffff-no-rj',
+    subscribers: '18M+'
+  },
+  {
+    id: 'UC2UXDak6o7rBm23k3Vv5dww',
+    name: 'Veritasium',
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZTUVa5AeFd3m5-4fdY2hEaKemT_Aj0l2mzQpRGJDQ=s176-c-k-c0x00ffffff-no-rj',
+    subscribers: '14M+'
+  },
+  {
+    id: 'UCBJycsmduvYEL83R_U4JriQ',
+    name: 'MKBHD',
+    thumbnail: 'https://yt3.googleusercontent.com/ytc/AIf8zZSNuBRkEk-8pVEsQYELZC0bRc7Ys3ySiwkCjAR7=s176-c-k-c0x00ffffff-no-rj',
+    subscribers: '18M+'
+  }
+];
 
 export default function SearchPage() {
   const router = useRouter();
@@ -114,6 +155,11 @@ export default function SearchPage() {
     setSearchQuery(search.query);
     setSearchType(search.type);
     performSearch(search.query, search.type);
+  };
+
+  // Handle clicking on a popular channel
+  const handlePopularChannelClick = (channelId) => {
+    router.push(`/channel/${channelId}`);
   };
 
   // Perform search with given query and type
@@ -238,6 +284,60 @@ export default function SearchPage() {
               </Grid>
             </Grid>
           </Box>
+
+          {/* Popular YouTube Channels */}
+          <Paper 
+            variant="outlined" 
+            sx={{ 
+              p: 2, 
+              mb: 4, 
+              backgroundColor: 'rgba(0, 0, 0, 0.02)',
+              borderRadius: 1
+            }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <SubscriptionsIcon sx={{ mr: 1, color: 'red' }} />
+              <Typography variant="h6">Popular YouTube Channels</Typography>
+            </Box>
+            <Grid container spacing={2}>
+              {popularChannels.map((channel) => (
+                <Grid item xs={6} sm={4} md={2} key={channel.id}>
+                  <Card 
+                    elevation={1}
+                    sx={{ 
+                      textAlign: 'center',
+                      transition: 'transform 0.2s, box-shadow 0.2s',
+                      '&:hover': {
+                        transform: 'translateY(-4px)',
+                        boxShadow: 4
+                      },
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => handlePopularChannelClick(channel.id)}
+                  >
+                    <CardContent sx={{ p: 2 }}>
+                      <Avatar 
+                        src={channel.thumbnail} 
+                        alt={channel.name}
+                        sx={{ 
+                          width: 64, 
+                          height: 64, 
+                          margin: '0 auto 8px',
+                          border: '2px solid #f0f0f0'
+                        }}
+                      />
+                      <Typography variant="subtitle1" noWrap fontWeight="bold">
+                        {channel.name}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {channel.subscribers} subscribers
+                      </Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
 
           {/* Recent Searches */}
           {recentSearches.length > 0 && (
