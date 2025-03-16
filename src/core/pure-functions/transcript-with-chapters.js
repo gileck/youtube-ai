@@ -1,8 +1,8 @@
 /**
  * Pure functions for combining transcripts with chapters
  */
-import { extractVideoId } from './get-transcript.js';
-import { formatTimestamp } from './get-chapters.js';
+import { extractVideoId, getTranscript } from './get-transcript.js';
+import { formatTimestamp, getChapters } from './get-chapters.js';
 
 /**
  * Checks if a chapter should be filtered out based on regex patterns
@@ -143,13 +143,22 @@ function organizeContentByChapters(combinedData) {
 /**
  * Gets the transcript with chapters for a YouTube video
  * @param {string} videoId - The YouTube video ID
- * @param {Object} transcriptData - The transcript data from getTranscript
- * @param {Object} chaptersData - The chapters data from getChapters
- * @param {Object} options - Options for processing
- * @returns {Object} - The transcript with chapters data and metadata
+ * @param {Object} [transcriptData] - Optional: The transcript data from getTranscript
+ * @param {Object} [chaptersData] - Optional: The chapters data from getChapters
+ * @param {Object} [options] - Options for processing
+ * @returns {Promise<Object>} - The transcript with chapters data and metadata
  */
-function getTranscriptWithChapters(videoId, transcriptData, chaptersData, options = {}) {
+async function getTranscriptWithChapters(videoId, transcriptData, chaptersData, options = {}) {
   try {
+    // If transcriptData or chaptersData are not provided, fetch them
+    if (!transcriptData) {
+      transcriptData = await getTranscript(videoId);
+    }
+    
+    if (!chaptersData) {
+      chaptersData = await getChapters(videoId);
+    }
+    
     // Extract transcript and chapters from the input objects
     const transcript = transcriptData.transcript || [];
     const chapters = chaptersData.chapters || [];
@@ -168,12 +177,20 @@ function getTranscriptWithChapters(videoId, transcriptData, chaptersData, option
     
     // Organize content by chapters (new approach)
     const chapterContent = organizeContentByChapters(combinedData);
+    
+    // Create structured chapters array for processors
+    const structuredChapters = Object.entries(chapterContent).map(([title, text]) => ({
+      title: title.replace(/^\[\d+:\d+\] /, ''), // Remove timestamp prefix
+      text
+    }));
 
     return {
       videoId,
+      transcript: formattedText,
+      chapters: structuredChapters,
       combinedData,
       formattedText,
-      chapterContent, // New field with structured chapter content
+      chapterContent,
       metadata: {
         transcriptSegments: transcript.length,
         chapters: filteredChapters.length,
@@ -185,9 +202,11 @@ function getTranscriptWithChapters(videoId, transcriptData, chaptersData, option
     console.error(`Error combining transcript and chapters: ${error.message}`);
     return {
       videoId,
+      transcript: '',
+      chapters: [],
       combinedData: [],
       formattedText: '',
-      chapterContent: {}, // Empty object for structured chapter content
+      chapterContent: {},
       metadata: {
         transcriptSegments: 0,
         chapters: 0,
@@ -199,10 +218,11 @@ function getTranscriptWithChapters(videoId, transcriptData, chaptersData, option
   }
 }
 
+// Export all functions
 export {
   shouldFilterChapter,
   combineTranscriptAndChapters,
   convertToFormattedText,
-  organizeContentByChapters, // Export the new function
+  organizeContentByChapters,
   getTranscriptWithChapters
 };
